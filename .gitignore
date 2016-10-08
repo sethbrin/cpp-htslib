@@ -1,1 +1,5 @@
 .swp
+.idea
+src.exvim
+.exvim.src/
+build/
