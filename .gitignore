@@ -3,3 +3,4 @@
 src.exvim
 .exvim.src/
 build/
+src/unittest.h

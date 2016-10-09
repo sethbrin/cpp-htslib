@@ -22,6 +22,27 @@ mkdir -p $BUILD_DIR/$BUILD_TYPE \
            $SOURCE_DIR \
   && make $*
 
+# 生成单元测试头文件，指定测试文件路径
+cat <<EOF > ${SOURCE_DIR}"/src/unittest.h"
+#ifndef UNIT_TEST_H_
+#define UNIT_TEST_H_
+
+#include <string.h>
+
+char test_dir[] = "${SOURCE_DIR}/test/";
+
+// 注意此处定义var，TEST_FILE只能单独作为一个语句,
+// 嵌套进if等块中可能会出问题
+#define TEST_FILE(filename, var) \\
+  char var[1024]; \\
+  do { \\
+    strcpy(var, test_dir); \\
+    strcat(var, filename); \\
+  } while(0)
+
+#endif
+EOF
+
 if [ $# -gt 0 ] && [ $1 == "test" ];then
   for unittest in bin/*_unittest; do
     echo "=======run ${unittest}==========="

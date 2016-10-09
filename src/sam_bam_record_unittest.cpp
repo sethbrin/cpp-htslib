@@ -2,12 +2,13 @@
 // Created by zp on 9/5/16.
 //
 #include "easehts.h"
+#include "unittest.h"
 
 #include <gtest/gtest.h>
 #include <memory>
 
 samFile* GetSamFile() {
-  char filename[] = "/home/zp/work/rnaseq/cpp-htslib/test/uncompressed.sam";
+  TEST_FILE("uncompressed.sam", filename);
   samFile* in = sam_open(filename, "r");
   if (in == NULL) {
     fprintf(stderr, "Error opening \"%s\"\n", filename);

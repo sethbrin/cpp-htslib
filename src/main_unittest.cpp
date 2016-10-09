@@ -4,6 +4,8 @@
 
 #include "htslib/sam.h"
 
+#include "unittest.h"
+
 #include <string.h>
 #include <gtest/gtest.h>
 
@@ -17,7 +19,7 @@ TEST(fun_Test, TESTNORMAL) {
 
 
 int sam_read() {
-  char filename[] = "/home/zp/work/rnaseq/cpp-htslib/test/uncompressed.sam";
+  TEST_FILE("uncompressed.sam", filename);
   samFile *in = sam_open(filename, "r");
   if (in == NULL) {
     fprintf(stderr, "Error opening \"%s\"\n", filename);

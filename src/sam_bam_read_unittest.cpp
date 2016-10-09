@@ -3,13 +3,14 @@
 //
 
 #include "easehts.h"
+#include "unittest.h"
 
 #include <gtest/gtest.h>
 #include <stdlib.h>
 #include <memory>
 
 samFile* GetSamFile() {
-  char filename[] = "/home/zp/work/rnaseq/cpp-htslib/test/uncompressed.sam";
+  TEST_FILE("uncompressed.sam", filename);
   samFile* in = sam_open(filename, "r");
   if (in == NULL) {
     fprintf(stderr, "Error opening \"%s\"\n", filename);
@@ -31,7 +32,7 @@ TEST(SAMBAMNormalReaderTest, Sam) {
 }
 
 samFile* GetBamFile() {
-  char filename[] = "/home/zp/work/rnaseq/cpp-htslib/test/compressed.bam";
+  TEST_FILE("compressed.bam", filename);
   samFile* in = sam_open(filename, "r");
   if (in == NULL) {
     fprintf(stderr, "Error opening \"%s\"\n", filename);
@@ -51,20 +52,21 @@ TEST(SAMBAMNormalReaderTest, bam) {
   EXPECT_EQ(count, 10);
 }
 
-samFile* GetBamIndexFile() {
-  char filename[] = "/home/zp/work/rnaseq/cpp-htslib/test/index_test.bam";
+ncic::easehts::BAMIndexReader* GetBamIndexFile() {
+  TEST_FILE("index_test.bam", filename);
+  std::shared_ptr<ncic::easehts::BAMIndex> bam_index =
+    std::make_shared<ncic::easehts::BAMIndex>(filename);
   samFile* in = sam_open(filename, "r");
   if (in == NULL) {
     fprintf(stderr, "Error opening \"%s\"\n", filename);
     exit(1);
   }
-  return in;
+  ncic::easehts::BAMIndexReader* reader_index =
+    new ncic::easehts::BAMIndexReader(in, bam_index);
+  return reader_index;
 }
 
-std::shared_ptr<ncic::easehts::BAMIndex> bam_index =
-    std::make_shared<ncic::easehts::BAMIndex>("/home/zp/work/rnaseq/cpp-htslib/test/index_test.bam");
-
-ncic::easehts::BAMIndexReader reader_index(GetBamIndexFile(), bam_index);
+ncic::easehts::BAMIndexReader& reader_index = *(GetBamIndexFile());
 TEST(BAMIndexReaderTest, BamIndex) {
   reader_index.AddRegion("chr1");
   ncic::easehts::SAMBAMRecord record;
