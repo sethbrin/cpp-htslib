@@ -25,12 +25,12 @@ TEST(SAMBAMRecord, recordCopy) {
 
   if (reader.HasNext(&record)) {
     EXPECT_EQ(record2.GetRawRecord(), reinterpret_cast<void*>(NULL));
-    record2 = record;
+    record2 = record.Copy();
     EXPECT_STREQ(record2.GetSequence().c_str(), "CAACAGAAGC");
     EXPECT_STREQ(record.GetSequence().c_str(), "CAACAGAAGC");
 
     // copy
-    ncic::easehts::SAMBAMRecord record3(record);
+    ncic::easehts::SAMBAMRecord record3 = record.Copy();
     EXPECT_STREQ(record3.GetSequence().c_str(), "CAACAGAAGC");
 
     // move

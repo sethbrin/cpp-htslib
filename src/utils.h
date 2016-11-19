@@ -20,7 +20,7 @@
 
 #define CHECK_NOTNULL(val) ASSERT_MSG(val != NULL, "'" #val "' Must be non NULL")
 
-#define ERROR_COND(cond, msg) do { if ((cond)) { fprintf(stderr, "[E::%s] %s \n", __func__, msg);  ::abort()} } while (0)
+#define ERROR_COND(cond, msg) do { if ((cond)) { fprintf(stderr, "[E::%s] %s \n", __func__, msg);  ::abort();} } while (0)
 #define WARN_COND(cond, msg) if ((cond)) fprintf(stderr, "[W::%s] %s \n", __func__, msg)
 #define ERROR(msg) do { fprintf(stderr, "[E::%s] %s \n", __func__, msg);  ::abort(); } while (0)
 #define WARN(msg) fprintf(stderr, "[W::%s] %s \n", __func__, msg)

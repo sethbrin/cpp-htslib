@@ -8,12 +8,10 @@
 #include <stdio.h>
 
 
-#include "reader.h"
+#include "sam_bam_reader.h"
 #include "sam_seqence_record.h"
-#include "sam_bam_normal_reader.h"
 #include "sam_sequence_dictionary.h"
 #include "sam_bam_record.h"
-#include "bam_index_reader.h"
 #include "genome_loc.h"
 
 #endif //EASEHTSLIB_EASEHTS_H

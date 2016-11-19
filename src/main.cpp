@@ -19,7 +19,7 @@ int sam_read() {
         return EXIT_FAILURE;
     }
 
-    ncic::easehts::SAMBAMNormalReader reader(in);
+    ncic::easehts::SAMBAMTextReader reader(in);
 
 
     return EXIT_SUCCESS;

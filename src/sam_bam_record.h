@@ -5,15 +5,17 @@
 #ifndef EASEHTSLIB_SAM_BAM_RECORD_H
 #define EASEHTSLIB_SAM_BAM_RECORD_H
 
+#include "utils.h"
+#include "noncopyable.h"
+
 #include <htslib/sam.h>
 #include <string>
-#include "utils.h"
 
 namespace ncic {
 
 namespace easehts {
 
-class SAMBAMRecord {
+class SAMBAMRecord : public NonCopyable {
  public:
   /**
    * if is_init is set, init record memory
@@ -23,13 +25,20 @@ class SAMBAMRecord {
     if (is_init) {
       raw_record_ = ::bam_init1();
     } else {
-      raw_record_ = NULL;
+      raw_record_ = nullptr;
     }
   }
 
   SAMBAMRecord(SAMBAMRecord&& rhs)
       : raw_record_(rhs.raw_record_) {
-    rhs.raw_record_ = NULL;
+    rhs.raw_record_ = nullptr;
+  }
+
+  SAMBAMRecord& operator=(SAMBAMRecord&& rhs) {
+    if (this == &rhs) return *this;
+    raw_record_ = rhs.raw_record_;
+    rhs.raw_record_ = nullptr;
+    return *this;
   }
 
   bam1_t* GetRawRecord() {
@@ -38,16 +47,13 @@ class SAMBAMRecord {
 
   ~SAMBAMRecord() {
     ::bam_destroy1(raw_record_);
-    raw_record_ = NULL;
+    raw_record_ = nullptr;
   }
 
-  SAMBAMRecord(const SAMBAMRecord& rhs) {
-    raw_record_ = ::bam_dup1(rhs.raw_record_);
-  }
-
-  SAMBAMRecord& operator=(const SAMBAMRecord& rhs) {
-    raw_record_ = ::bam_dup1(rhs.raw_record_);
-    return *this;
+  SAMBAMRecord Copy() {
+    SAMBAMRecord record;
+    record.raw_record_ = ::bam_dup1(raw_record_);
+    return record;
   }
 
   /*! @function
