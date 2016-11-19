@@ -7,7 +7,7 @@
 
 #include "utils.h"
 #include "sam_bam_record.h"
-#include "sam_bam_header.h"
+#include "sam_sequence_dictionary.h"
 
 #include <string>
 
@@ -26,7 +26,7 @@ class AbstractReader {
 
  protected:
   samFile* fp_;
-  SAMBAMHeader header_;
+  SAMSequenceDictionary header_;
 };
 
 typedef struct FileType {

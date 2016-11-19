@@ -23,13 +23,13 @@ namespace easehts {
 class SAMFileHeader {
  public:
   SAMFileHeader() {
-    sequence_dictionary_ = std::make_shared<SAMSequenceDictionary>();
+    sequence_dictionary_ = std::make_shared<SAMFileHeader>();
   }
-  void SetSequenceDictionary(SAMSequenceDictionaryPtr& sequence_dictionary) {
+  void SetSequenceDictionary(SAMFileHeaderPtr& sequence_dictionary) {
     sequence_dictionary_ = sequence_dictionary;
   }
 
-  const SAMSequenceDictionaryPtr& GetSequenceDictionary() const {
+  const SAMFileHeaderPtr& GetSequenceDictionary() const {
     return sequence_dictionary_;
   }
 
@@ -38,7 +38,7 @@ class SAMFileHeader {
   }
 
  private:
-  SAMSequenceDictionaryPtr sequence_dictionary_;
+  SAMFileHeaderPtr sequence_dictionary_;
   std::map<std::string, std::string> attributes_;
 
 };

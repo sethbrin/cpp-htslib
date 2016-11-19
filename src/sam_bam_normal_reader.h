@@ -8,7 +8,6 @@
 #include "reader.h"
 #include "sam_sequence_dictionary.h"
 #include "sam_bam_record.h"
-#include "sam_bam_header.h"
 #include "noncopyable.h"
 
 #include <string>
@@ -40,7 +39,7 @@ class SAMBAMNormalReader : public AbstractReader, public NonCopyable {
     ReadHeader();
   }
 
-  const SAMBAMHeader& GetFileHeader() const {
+  const SAMSequenceDictionary& GetFileHeader() const {
     return AbstractReader::header_;
   }
 

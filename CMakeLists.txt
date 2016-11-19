@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 project(easehtslib)
 
-#set(CMAKE_CXX_COMPILER g++)
+#set(CMAKE_CXX_COMPILER clang++)
 
 set(CXX_FLAGS
         -g
@@ -60,6 +60,8 @@ link_libraries(
 
 if (test)
     macro (create_test target)
+        add_executable(${target} ${target}.cpp)
+        target_link_libraries(${target} easehtslib)
         add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}>)
     endmacro (create_test)
 
@@ -76,3 +78,4 @@ if (test)
 endif()
 
 add_subdirectory(src)
+add_subdirectory(mutect)
