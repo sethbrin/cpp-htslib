@@ -27,6 +27,16 @@ bool SAMBAMTextReader::HasNext(SAMBAMRecord* record) {
   }
 }
 
+bool SAMBAMTextReader::HasNext(bam1_t* record) {
+  int r = sam_read1(fp_, header_.GetRawHeader(), record);
+  if (r >= 0) {
+    return true;
+  } else {
+    return false;
+  }
+
+}
+
 void BAMIndexReader::SetRegion(const std::string& region) {
   hts_itr_t *iter = ::sam_itr_querys(index_.GetRawIndex(),
                                      header_.GetRawHeader(), region.c_str());
@@ -70,6 +80,25 @@ bool BAMIndexReader::HasNext(SAMBAMRecord* record) {
   return false;
 }
 
+bool BAMIndexReader::HasNext(bam1_t* record) {
+  if (hts_iter_ == nullptr) {
+    // just as SAMBAMTextReader do
+    int r = sam_read1(fp_, header_.GetRawHeader(),
+                      record);
+    if (r >= 0) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  while (::sam_itr_next(fp_, hts_iter_, record) >= 0) {
+    return true;
+  }
+  return false;
+
+}
+
 void BAMIndexBatchReader::AddRegion(const std::string& region) {
   hts_itr_t *iter = ::sam_itr_querys(index_.GetRawIndex(),
                                      header_.GetRawHeader(), region.c_str());
@@ -105,6 +134,20 @@ bool BAMIndexBatchReader::HasNext(SAMBAMRecord* record) {
   return false;
 }
 
+bool BAMIndexBatchReader::HasNext(bam1_t* record) {
+  while (!hts_iters_.empty()) {
+    hts_itr_t* front = hts_iters_.front();
+
+    if (sam_itr_next(fp_, front, record) >= 0) {
+      return true;
+    }
+    ::hts_itr_destroy(front);
+    // read all the data of front
+    hts_iters_.pop();
+  }
+  return false;
+
+}
 
 } // easehts
 } // ncic

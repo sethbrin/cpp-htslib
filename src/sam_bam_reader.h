@@ -41,6 +41,10 @@ class AbstractSAMBAMReader : public NonCopyable {
 
   virtual bool HasNext(SAMBAMRecord* record) = 0;
 
+  // load the bam data to record
+  // just for the situation that use the raw data
+  virtual bool HasNext(bam1_t* record) = 0;
+
   const SAMSequenceDictionary& GetSequenceDictionary() const {
     return header_;
   }
@@ -77,6 +81,7 @@ class SAMBAMTextReader : public AbstractSAMBAMReader {
  public:
   using AbstractSAMBAMReader::AbstractSAMBAMReader;
   bool HasNext(SAMBAMRecord* record) override;
+  bool HasNext(bam1_t* record) override;
 };
 
 
@@ -123,6 +128,7 @@ class BAMIndexReader : public AbstractSAMBAMReader {
       hts_iter_(nullptr) {}
 
   bool HasNext(SAMBAMRecord* record) override;
+  bool HasNext(bam1_t* record) override;
 
   /**
    * Set the region that need to read
@@ -151,7 +157,8 @@ class BAMIndexBatchReader : public AbstractSAMBAMReader {
       : AbstractSAMBAMReader(filename),
       index_(filename) {}
 
-  bool HasNext(SAMBAMRecord* record);
+  bool HasNext(SAMBAMRecord* record) override;
+  bool HasNext(bam1_t* record) override;
 
   void AddRegion(const std::string& region);
   void AddRegion(int32_t tid, int32_t begin, int32_t end);
