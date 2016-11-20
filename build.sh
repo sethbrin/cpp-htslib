@@ -23,7 +23,7 @@ mkdir -p $BUILD_DIR/$BUILD_TYPE \
   && make $*
 
 # 生成单元测试头文件，指定测试文件路径
-cat <<EOF > ${SOURCE_DIR}"/src/unittest.h"
+cat <<EOF > ${SOURCE_DIR}"/src/easehts/unittest.h"
 #ifndef UNIT_TEST_H_
 #define UNIT_TEST_H_
 

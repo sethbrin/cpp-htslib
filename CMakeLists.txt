@@ -25,34 +25,25 @@ set(CXX_FLAGS
         )
 # Options. Turn on with 'cmake -Dmyvarname=ON'.
 option(test "Build all tests." OFF) # Makes boolean 'test' available.
+option(EASEHTS_BUILD_THIRDPARTY_GTEST
+  "Use gtest installation in `thirdparty/gtest` by default if available" ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -finline-limit=1000 -DNDEBUG")
 string(REPLACE ";" " " CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 
-#set(BOOST_ROOT "/home/zp/tools/boost/")
-#find_package(Boost REQUIRED)
+
 find_package(ZLIB)
 
-set(HTS_LIB "${PROJECT_SOURCE_DIR}/htslib/")
-#set(GLOG_ROOT "/home/zp/tools/glog/install/")
-#set(GFLAGS_ROOT "/home/zp/tools/gflags/install/")
+set(HTS_LIB "${PROJECT_SOURCE_DIR}/thirdparty/htslib/")
 
-#include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${HTS_LIB})
-#include_directories(${GLOG_ROOT}/include/)
-#include_directories(${GFLAGS_ROOT}/include/)
-
-link_directories(
-  #        ${GLOG_ROOT}/lib/
-  #      ${GFLAGS_ROOT}/lib/
-)
 
 link_libraries(
-        #${Boost_LIBRARIES}
         pthread
         z
         unwind
@@ -67,16 +58,10 @@ if (test)
 
     enable_testing()
 
-    set(GTEST_ROOT "/home/zp/tools/googletest/install/")
-    find_package(GTest REQUIRED)
-
-    include_directories(${GTEST_INCLUDE_DIRS})
-
-    link_directories(
-      ${GTEST_ROOT}/lib/
-    )
+    find_package(GTestSrc)
+    add_subdirectory(${GTEST_SOURCE_DIR} ${CMAKE_BINARY_DIR}/googletest)
+    include_directories(SYSTEM ${GTEST_INCLUDE_DIR})
 endif()
 
 add_subdirectory(src)
-add_subdirectory(mutect)
-add_subdirectory(mpileup)
+add_subdirectory(example)
