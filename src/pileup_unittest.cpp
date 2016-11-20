@@ -1,7 +1,7 @@
-#include "unittest.h"
-#include "pileup.h"
-#include "sam_bam_reader.h"
-#include "sam_bam_record.h"
+#include "easehts/unittest.h"
+#include "easehts/pileup.h"
+#include "easehts/sam_bam_reader.h"
+#include "easehts/sam_bam_record.h"
 
 #include <gtest/gtest.h>
 

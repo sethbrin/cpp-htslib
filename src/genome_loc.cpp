@@ -1,5 +1,5 @@
-#include "genome_loc.h"
-#include "sam_sequence_dictionary.h"
+#include "easehts/genome_loc.h"
+#include "easehts/sam_sequence_dictionary.h"
 
 #include <string>
 #include <vector>

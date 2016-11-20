@@ -1,11 +1,11 @@
+#include "parser.h"
+
+#include <easehts/utils.h>
+
 #include <stdio.h>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
-
-#include "parser.h"
-#include "../src/utils.h"
-
 
 int main(int argc, char** argv) {
   StringOption interval('L', "intervals",   true , "interval file");

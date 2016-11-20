@@ -1,6 +1,5 @@
 set(SOURCE_FILES
     utils.cpp
-    sam_seqence_record.cpp
     sam_bam_reader.cpp
     sam_bam_record.cpp
     genome_loc.cpp

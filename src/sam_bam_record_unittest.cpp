@@ -1,8 +1,8 @@
 //
 // Created by zp on 9/5/16.
 //
-#include "easehts.h"
-#include "unittest.h"
+#include "easehts/easehts.h"
+#include "easehts/unittest.h"
 
 #include <gtest/gtest.h>
 #include <memory>

@@ -9,7 +9,6 @@
 
 
 #include "sam_bam_reader.h"
-#include "sam_seqence_record.h"
 #include "sam_sequence_dictionary.h"
 #include "sam_bam_record.h"
 #include "genome_loc.h"

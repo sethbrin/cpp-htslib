@@ -1,4 +1,4 @@
-#include "reference_sequence.h"
+#include "easehts/reference_sequence.h"
 
 #include <set>
 #include <string>

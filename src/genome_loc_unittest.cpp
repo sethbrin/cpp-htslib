@@ -1,6 +1,6 @@
-#include "genome_loc.h"
-#include "unittest.h"
-#include "reference_sequence.h"
+#include "easehts/genome_loc.h"
+#include "easehts/unittest.h"
+#include "easehts/reference_sequence.h"
 
 #include <gtest/gtest.h>
 

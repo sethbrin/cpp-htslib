@@ -2,10 +2,9 @@
 // Created by zp on 11/18/16.
 //
 
-#include "easehts.h"
-#include "reference_sequence.h"
-
-#include "unittest.h"
+#include "easehts/easehts.h"
+#include "easehts/reference_sequence.h"
+#include "easehts/unittest.h"
 
 #include <string.h>
 #include <gtest/gtest.h>

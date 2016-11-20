@@ -1,13 +1,10 @@
 #include <iostream>
-
-#include "htslib/sam.h"
-
+#include <htslib/sam.h>
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
-#include <boost/lexical_cast.hpp>
 
-#include "easehts.h"
+#include "easehts/easehts.h"
 
 using namespace std;
 

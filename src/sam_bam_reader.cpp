@@ -2,8 +2,8 @@
 // Created by zp on 11/19/16.
 //
 
-#include "sam_bam_reader.h"
-#include "utils.h"
+#include "easehts/sam_bam_reader.h"
+#include "easehts/utils.h"
 
 #include <string>
 

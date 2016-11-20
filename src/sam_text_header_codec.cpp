@@ -2,8 +2,8 @@
 // Created by zp on 8/24/16.
 //
 
-#include "sam_text_header_codec.h"
-#include "utils.h"
+#include "easehts/sam_text_header_codec.h"
+#include "easehts/utils.h"
 
 #include <memory>
 #include <assert.h>

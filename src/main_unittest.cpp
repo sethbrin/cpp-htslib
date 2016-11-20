@@ -1,13 +1,11 @@
 //
 // Created by zp on 8/22/16.
 //
-
-#include "htslib/sam.h"
-
-#include "unittest.h"
+#include "easehts/unittest.h"
 
 #include <string.h>
 #include <gtest/gtest.h>
+#include <htslib/sam.h>
 
 int fun(int a, int b) {
   return a + b;
