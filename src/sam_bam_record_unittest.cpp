@@ -7,21 +7,14 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-samFile* GetSamFile() {
-  TEST_FILE("uncompressed.sam", filename);
-  samFile* in = sam_open(filename, "r");
-  if (in == NULL) {
-    fprintf(stderr, "Error opening \"%s\"\n", filename);
-    exit(1);
-  }
-  return in;
-}
-
-ncic::easehts::SAMBAMNormalReader reader(GetSamFile());
+using namespace ncic::easehts;
 
 TEST(SAMBAMRecord, recordCopy) {
-  ncic::easehts::SAMBAMRecord record;
-  ncic::easehts::SAMBAMRecord record2(false);
+  TEST_FILE("uncompressed.sam", filename);
+  SAMBAMTextReader reader(filename);
+
+  SAMBAMRecord record;
+  SAMBAMRecord record2(false);
 
   if (reader.HasNext(&record)) {
     EXPECT_EQ(record2.GetRawRecord(), reinterpret_cast<void*>(NULL));
@@ -30,11 +23,16 @@ TEST(SAMBAMRecord, recordCopy) {
     EXPECT_STREQ(record.GetSequence().c_str(), "CAACAGAAGC");
 
     // copy
-    ncic::easehts::SAMBAMRecord record3 = record.Copy();
+    SAMBAMRecord record3 = record.Copy();
     EXPECT_STREQ(record3.GetSequence().c_str(), "CAACAGAAGC");
 
     // move
-    ncic::easehts::SAMBAMRecord record4(std::move(record));
+    SAMBAMRecord record4(std::move(record));
     EXPECT_STREQ(record3.GetSequence().c_str(), "CAACAGAAGC");
   }
+}
+
+TEST(SAMFlag, value) {
+  EXPECT_EQ(SAMFlag::READ_PAIRED, 0x1);
+  EXPECT_EQ(SAMFlag::NOT_PRIMARY_ALIGNMENT, 0x100);
 }

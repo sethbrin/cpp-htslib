@@ -61,13 +61,16 @@ class ReadBackedPileup {
     : elements_(plp),
     size_(size),
     contig_id_(contig_id),
-    pos_(pos) {}
+    pos_(pos) {
+    contig_id_pos_ = ((uint64_t)contig_id_ << 32)| pos_;
+  }
 
   ReadBackedPileup()
     : elements_(nullptr),
     size_(0),
     contig_id_(-1),
-    pos_(-1) {}
+    pos_(-1),
+    contig_id_pos_((uint64_t)-1) {}
 
   size_t Size() const {
     return size_;
@@ -81,11 +84,16 @@ class ReadBackedPileup {
     return pos_;
   }
 
-  PileupElement operator[](size_t idx) {
+  // (uint64_t)contig_id_ << 32| pos_;
+  uint64_t GetContigPos() const {
+    return contig_id_pos_;
+  }
+
+  PileupElement operator[](size_t idx) const {
     return PileupElement(elements_ + idx);
   }
 
-  PileupElement At(size_t idx) {
+  PileupElement At(size_t idx) const {
     ERROR_COND(idx >= size_,
         utils::StringFormatCStr("out of bound error, the size is %d, and get %d", size_, idx));
     return PileupElement(elements_ + idx);
@@ -100,6 +108,7 @@ class ReadBackedPileup {
   // the pileup site postion
   int contig_id_; // in which contig
   int pos_; // 0-based postion
+  uint64_t contig_id_pos_; // combine contig_id and pos
 };
 
 // TraverseCallback: int(void *data, bam1_t *b)
@@ -122,6 +131,21 @@ class PileupTraverse : public NonCopyable {
     iter_ = ::bam_plp_init(fun, data);
   }
 
+  PileupTraverse(PileupTraverse&& rhs)
+    : read_backed_pileup_(rhs.read_backed_pileup_),
+    iter_(rhs.iter_) {
+    rhs.iter_ = nullptr;
+  }
+
+  PileupTraverse& operator=(PileupTraverse&& rhs) {
+    if (this != &rhs) return *this;
+
+    read_backed_pileup_ = rhs.read_backed_pileup_,
+    iter_ = rhs.iter_;
+    rhs.iter_ = nullptr;
+    return *this;
+  }
+
   ~PileupTraverse() {
     ::bam_plp_destroy(iter_);
   }
@@ -135,12 +159,23 @@ class PileupTraverse : public NonCopyable {
     if (plp != nullptr) {
       read_backed_pileup_ = ReadBackedPileup(plp, size, contig_id, pos);
       return true;
+    } else {
+      read_backed_pileup_ = ReadBackedPileup();
+      return false;
     }
-    return false;
   }
 
   const ReadBackedPileup& Next() {
     return read_backed_pileup_;
+  }
+
+  // the same as Next
+  const ReadBackedPileup& CurrentPileup() {
+    return read_backed_pileup_;
+  }
+
+  void GetNext() {
+    HasNext();
   }
 
  private:

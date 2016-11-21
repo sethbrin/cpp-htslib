@@ -9,8 +9,9 @@
 
 #include <easehts/genome_loc.h>
 #include <easehts/noncopyable.h>
-#include <easehts/reference_sequence.h>
 #include <easehts/sam_bam_reader.h>
+#include <easehts/sam_bam_record.h>
+#include <easehts/reference_sequence.h>
 
 #include <list>
 #include <string>
@@ -45,6 +46,16 @@ class Worker : public easehts::NonCopyable {
   void Run(const easehts::GenomeLoc& interval);
 
  private:
+  static int Input(void *data, bam1_t *b);
+  // the data
+  typedef struct InputData {
+    easehts::BAMIndexReader* reader;
+  } InputData;
+
+  void PrepareCondidate(int contig_id, int pos,
+                        LocusReadPile& normal_read_pile,
+                        LocusReadPile& tumor_read_pile);
+
   MutectArgs& mutect_args_;
   easehts::IndexedFastaSequenceFile& reference_;
 

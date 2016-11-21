@@ -20,7 +20,8 @@ class MutectArgs : public ncic::easehts::NonCopyable {
     normal_files('N', "normal_file", false, "normal bam file"),
     output_file('o', "out", true, "output file"),
     vcf_file('v', "vcf", true, "output vcf file"),
-    thread_cnt('t', "nthreads", false, "number of threads") {
+    thread_cnt('t', "nthreads", false, 1, "number of threads"),
+    overlap_size('O', "overlap_size", false, 3000, "the size of overlap_size, default is 3000") {
 
     easehts::ArgsParser parser;
     parser.addOption(interval_file)
@@ -29,7 +30,8 @@ class MutectArgs : public ncic::easehts::NonCopyable {
       .addOption(normal_files)
       .addOption(output_file)
       .addOption(vcf_file)
-      .addOption(thread_cnt);
+      .addOption(thread_cnt)
+      .addOption(overlap_size);
 
     parser.parse(argc, argv);
   }
@@ -41,6 +43,7 @@ class MutectArgs : public ncic::easehts::NonCopyable {
   easehts::StringOption output_file;
   easehts::StringOption vcf_file;
   easehts::IntegerOption thread_cnt;
+  easehts::IntegerOption overlap_size;
 
 };
 

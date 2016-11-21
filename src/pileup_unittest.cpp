@@ -36,5 +36,42 @@ TEST(Next, PileupTraverse) {
     //printf("contig:%d pos:%d count:%d\n", plp.GetContigId(),
     //       plp.GetPos(), plp.Size());
   }
+
+  EXPECT_EQ(traverse.Next().Size(), 0);
   EXPECT_EQ(count, 4101);
+}
+
+TEST(MutectBam, NormalPileupTraverse) {
+  TEST_FILE("MG225_normal_sorted_X.bam", filename);
+  BAMIndexReader reader(filename);
+  reader.SetRegion(22, 15482483-3000, 15482603+3000);
+  TraverseData data;
+  data.reader = &reader;
+
+  PileupTraverse traverse(fun, &data);
+  while (traverse.HasNext()) {
+    ReadBackedPileup plp = traverse.Next();
+    if (plp.GetPos() == 15482483) {
+      EXPECT_EQ(plp.Size(), 158);
+      break;
+    }
+  }
+}
+
+TEST(MutectBam, TumorPileupTraverse) {
+  TEST_FILE("MG225_tumor_sorted_X.bam", filename);
+  BAMIndexReader reader(filename);
+  reader.SetRegion(22, 15482483-3000, 15482603+3000);
+  TraverseData data;
+  data.reader = &reader;
+
+  PileupTraverse traverse(fun, &data);
+  while (traverse.HasNext()) {
+    ReadBackedPileup plp = traverse.Next();
+    if (plp.GetPos() == 15482483) {
+      EXPECT_EQ(plp.Size(), 266);
+      break;
+    }
+  }
+
 }

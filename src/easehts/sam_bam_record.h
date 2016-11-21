@@ -15,8 +15,38 @@ namespace ncic {
 
 namespace easehts {
 
+enum SAMFlag {
+  // "Template having multiple segments in sequencing"
+  READ_PAIRED = 0x1,
+  // Each segment properly aligned according to the aligner
+  PROPER_PAIR = 0x2,
+  // Segment unmapped
+  READ_UNMAPPED = 0x4,
+  // Next segment in the template unmapped
+  MATE_UNMAPPED = 0x8,
+  // SEQ being reverse complemented
+  READ_REVERSE_STRAND = 0x10,
+  // SEQ of the next segment in the template being reverse complemented
+  MATE_REVERSE_STRAND = 0x20,
+  // The first segment in the template
+  FIRST_OF_PAIR = 0x40,
+  // The last segment in the template
+  SECOND_OF_PAIR = 0x80,
+  // Secondary alignment
+  NOT_PRIMARY_ALIGNMENT = 0x100,
+  // Not passing quality controls
+  READ_FAILS_VENDOR_QUALITY_CHECK = 0x200,
+  // PCR or optical duplicate
+  DUPLICATE_READ = 0x400,
+  // Supplementary alignment
+  SUPPLEMENTARY_ALIGNMENT = 0x800
+};
+
 class SAMBAMRecord : public NonCopyable {
  public:
+  enum {
+    NO_ALIGNMENT_START = -1
+  };
   /**
    * if is_init is set, init record memory
    * TODO fix design
@@ -43,6 +73,10 @@ class SAMBAMRecord : public NonCopyable {
 
   bam1_t* GetRawRecord() {
     return raw_record_;
+  }
+
+  void SetRawRecord(bam1_t* b) {
+    raw_record_ = b;
   }
 
   ~SAMBAMRecord() {
@@ -140,6 +174,40 @@ class SAMBAMRecord : public NonCopyable {
     return bam_get_l_aux(raw_record_);
   }
 
+  /**
+   * the query sequence itself is unmapped.
+   */
+  bool GetReadUnmappedFlag() {
+    return (raw_record_->core.flag & SAMFlag::READ_UNMAPPED) != 0;
+  }
+
+  /**
+   * the alignment is not primary (a read having split hits may have multiple primary alignment records).
+   */
+  bool GetNotPrimaryAlignmentFlag() {
+    return (raw_record_->core.flag & SAMFlag::NOT_PRIMARY_ALIGNMENT) != 0;
+  }
+
+  /**
+   * the read is either a PCR duplicate or an optical duplicate.
+   */
+  bool GetDuplicateReadFlag() {
+    return (raw_record_->core.flag & SAMFlag::DUPLICATE_READ) != 0;
+  }
+
+  /**
+   * the read fails platform/vendor quality checks.
+   */
+  bool GetReadFailsVendorQualityCheckFlag() {
+    return (raw_record_->core.flag & SAMFlag::READ_FAILS_VENDOR_QUALITY_CHECK) != 0;
+  }
+
+  /**
+   * @return 0-based inclusive leftmost position of the clipped sequence, or 0 if there is no position.
+   */
+  int GetAlignmentStart() {
+    return raw_record_->core.pos;
+  }
  private:
   bam1_t* raw_record_;
 
