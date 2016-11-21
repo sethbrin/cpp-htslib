@@ -33,6 +33,20 @@ TEST(Constructor1, SAMBAMTextReader) {
 
 }
 
+TEST(MoveConstructor, SAMBAMTextReader) {
+  std::vector<SAMBAMTextReader> readers;
+  SAMBAMTextReader reader = SAMBAMTextReader(GetSamFile());
+  readers.push_back(std::move(reader));
+  SAMBAMRecord record;
+  int count = 0;
+  while (readers[0].HasNext(&record)) {
+    count++;
+  }
+
+  EXPECT_EQ(count, 10);
+
+}
+
 TEST(Constructor2, SAMBAMTextReader) {
   TEST_FILE("uncompressed.sam", filename);
   SAMBAMTextReader reader(filename);

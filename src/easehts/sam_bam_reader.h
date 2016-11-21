@@ -39,6 +39,20 @@ class AbstractSAMBAMReader : public NonCopyable {
     header_ = SAMSequenceDictionary(fp);
   }
 
+  AbstractSAMBAMReader(AbstractSAMBAMReader&& rhs)
+    : fp_(rhs.fp_),
+    header_(std::move(rhs.header_)) {
+    rhs.fp_ = nullptr;
+  }
+
+  AbstractSAMBAMReader& operator=(AbstractSAMBAMReader&& rhs) {
+    if (this == &rhs) return *this;
+    fp_ = rhs.fp_;
+    header_ = std::move(rhs.header_);
+    rhs.fp_ = nullptr;
+    return *this;
+  }
+
   virtual bool HasNext(SAMBAMRecord* record) = 0;
 
   // load the bam data to record
@@ -98,6 +112,23 @@ class BAMIndex : public NonCopyable {
     hts_idx_ = ::hts_idx_load2(filename_.c_str(), filename_ext_.c_str());
   }
 
+  BAMIndex(BAMIndex&& rhs) noexcept
+      : filename_(std::move(rhs.filename_)),
+      filename_ext_(std::move(rhs.filename_ext_)),
+      hts_idx_(rhs.hts_idx_) {
+    rhs.hts_idx_ = nullptr;
+  }
+
+  BAMIndex& operator=(BAMIndex&& rhs) noexcept {
+    if (this == &rhs) return *this;
+
+    filename_ = std::move(rhs.filename_);
+    filename_ext_ = std::move(rhs.filename_ext_);
+    hts_idx_ = rhs.hts_idx_;
+    rhs.hts_idx_ = nullptr;
+    return *this;
+  }
+
   std::string GetFileName() {
     return filename_;
   }
@@ -126,6 +157,13 @@ class BAMIndexReader : public AbstractSAMBAMReader {
       : AbstractSAMBAMReader(filename),
       index_(filename),
       hts_iter_(nullptr) {}
+
+  BAMIndexReader(BAMIndexReader&& rhs) noexcept :
+      AbstractSAMBAMReader(std::move(rhs)),
+      hts_iter_(rhs.hts_iter_),
+      index_(std::move(rhs.index_)) {
+    rhs.hts_iter_ = nullptr;
+  }
 
   bool HasNext(SAMBAMRecord* record) override;
   bool HasNext(bam1_t* record) override;
@@ -156,6 +194,12 @@ class BAMIndexBatchReader : public AbstractSAMBAMReader {
   explicit BAMIndexBatchReader(const std::string& filename)
       : AbstractSAMBAMReader(filename),
       index_(filename) {}
+
+  BAMIndexBatchReader(BAMIndexBatchReader&& rhs) noexcept :
+      AbstractSAMBAMReader(std::move(rhs)),
+      hts_iters_(std::move(rhs.hts_iters_)),
+      index_(std::move(rhs.index_)) {
+  }
 
   bool HasNext(SAMBAMRecord* record) override;
   bool HasNext(bam1_t* record) override;

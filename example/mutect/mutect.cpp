@@ -1,37 +1,49 @@
-#include "parser.h"
+#include "mutect.h"
 
-#include <easehts/utils.h>
+#include <easehts/genome_loc.h>
 
-#include <stdio.h>
-#include <string>
-#include <sys/stat.h>
+#include <atomic>
+#include <cmath>
+#include <thread>
 #include <vector>
 
-int main(int argc, char** argv) {
-  StringOption interval('L', "intervals",   true , "interval file");
-  StringOption reference('R', "reference_sequence", false, "Reference sequence file");
-  StringListOption tumor_files('T', "tumor_file", true, "tumor bam file");
-  StringListOption normal_files('N', "normal_file", false, "normal bam file");
-  StringOption output_file('o', "out", true, "output file");
-  StringOption vcf_file('v', "vcf", true, "output vcf file");
+namespace ncic {
+namespace mutect {
 
-  Parser parser;
-  parser.addOption(interval)
-    .addOption(reference)
-    .addOption(tumor_files)
-    .addOption(normal_files)
-    .addOption(output_file)
-    .addOption(vcf_file);
+void Worker::Run(const easehts::GenomeLoc& interval) {
+  printf("run: %s\n", interval.ToString().c_str());
+}
 
-  std::vector<std::string> otherArguments = parser.parse(argc, argv);
+void Mutect::Run() {
+  easehts::GenomeLocParser parser(reference_.GetSequenceDictionary());
+  std::vector<easehts::GenomeLoc> intervals =
+    easehts::IntervalUtils::IntervalFileToList(parser,
+                                               mutect_args_.interval_file.getValue());
 
-
-  std::list<std::string> values = tumor_files.getValue();
-  for(std::list<std::string>::iterator entry = values.begin();
-      entry != values.end();
-      ++entry) {
-    std::cout << *entry << std::endl;
+  int thread_cnt = 1;
+  if (mutect_args_.thread_cnt.isSet()) {
+    thread_cnt = std::max(mutect_args_.thread_cnt.getValue(), thread_cnt);
   }
 
-  return 0;
+  std::atomic<int> interval_index(0);
+  std::vector<std::thread> workers;
+  workers.reserve(thread_cnt);
+  for (int i = 0; i < thread_cnt; i++) {
+    workers.emplace_back([this, &intervals, &interval_index]() {
+      Worker worker(this->mutect_args_, this->reference_);
+      while (interval_index < intervals.size()) {
+        size_t index = interval_index++;
+        if (index >= intervals.size()) break;
+
+        worker.Run(intervals[index]);
+      }
+    });
+  }
+
+  for (int i = 0; i < thread_cnt; i++) {
+    workers[i].join();
+  }
 }
+
+} // mutect
+} // ncic

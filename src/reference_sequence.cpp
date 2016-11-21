@@ -6,8 +6,8 @@
 namespace ncic {
 namespace easehts {
 
-AbstractFastaSequenceFile::AbstractFastaSequenceFile(const std::string& file_path) :
-  file_path_(file_path) {
+AbstractFastaSequenceFile::AbstractFastaSequenceFile(std::string file_path) :
+  file_path_(std::forward<std::string>(file_path)) {
   std::string dictionary_name = AbstractFastaSequenceFile::FindSequenceDictionaryFileName(file_path_);
   if (!dictionary_name.empty()) {
     samFile* fp = sam_open(dictionary_name.c_str(), "r");

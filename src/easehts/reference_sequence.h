@@ -54,7 +54,18 @@ class ReferenceSequence : public NonCopyable {
  */
 class AbstractFastaSequenceFile : public NonCopyable {
  public:
-  explicit AbstractFastaSequenceFile(const std::string& file_path);
+  AbstractFastaSequenceFile() = default;
+  explicit AbstractFastaSequenceFile(std::string file_path);
+
+  AbstractFastaSequenceFile(AbstractFastaSequenceFile&& rhs)
+    : file_path_(std::move(rhs.file_path_)),
+    ref_header_(std::move(rhs.ref_header_))
+  {}
+
+  AbstractFastaSequenceFile& operator=(AbstractFastaSequenceFile&& rhs) {
+    file_path_ = std::move(rhs.file_path_);
+    ref_header_ = std::move(rhs.ref_header_);
+  }
 
   const SAMSequenceDictionary& GetSequenceDictionary() const {
     return ref_header_;
@@ -221,7 +232,9 @@ class FastaIndex {
  */
 class IndexedFastaSequenceFile : public AbstractFastaSequenceFile {
  public:
-  explicit IndexedFastaSequenceFile(const std::string& file_path)
+  IndexedFastaSequenceFile() = default;
+
+  explicit IndexedFastaSequenceFile(std::string file_path)
     : AbstractFastaSequenceFile(file_path),
     fasta_index_(file_path.c_str()) {}
 

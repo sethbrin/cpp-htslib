@@ -176,7 +176,7 @@ class GenomeLocParser : public NonCopyable {
     : ref_header_(header),
     validation_level_{level} {}
 
-  GenomeLocParser(const SAMSequenceDictionary& header)
+  explicit GenomeLocParser(const SAMSequenceDictionary& header)
     : ref_header_(header),
     validation_level_{ValidationLevel::STANDARD} {}
 

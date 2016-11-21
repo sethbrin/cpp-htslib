@@ -20,11 +20,12 @@ set(CXX_FLAGS
         #-march=native
         # -MMD
         #-std=c++0x
+        #-fno-elide-constructors
         -std=c++11
         -rdynamic
         )
 # Options. Turn on with 'cmake -Dmyvarname=ON'.
-option(test "Build all tests." OFF) # Makes boolean 'test' available.
+option(test "Build all tests." ON) # Makes boolean 'test' available.
 option(EASEHTS_BUILD_THIRDPARTY_GTEST
   "Use gtest installation in `thirdparty/gtest` by default if available" ON)
 
@@ -61,6 +62,7 @@ if (test)
     find_package(GTestSrc)
     add_subdirectory(${GTEST_SOURCE_DIR} ${CMAKE_BINARY_DIR}/googletest)
     include_directories(SYSTEM ${GTEST_INCLUDE_DIR})
+
 endif()
 
 add_subdirectory(src)

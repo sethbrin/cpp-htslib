@@ -39,12 +39,13 @@ DEALINGS IN THE SOFTWARE.  */
 #include <htslib/faidx.h>
 #include <htslib/kstring.h>
 #include <htslib/khash_str2int.h>
-#include "sam_opts.h"
 
-#include "thread_pool.h"
+#include <easehts/thread_pool.h>
+
 #include "bedidx.h"
 #include "bam2bcf_indel.h"
 #include "sam_utils.h"
+#include "sam_opts.h"
 #include "pileup_buffer.h"
 
 static inline int printw(int c, FILE *fp)
