@@ -28,7 +28,7 @@ TEST(Next, PileupTraverse) {
   PileupTraverse traverse(fun, &data);
   int count = 0;
   while (traverse.HasNext()) {
-    ReadBackedPileup plp = traverse.Next();
+    ReadBackedRawPileup plp = traverse.Next();
     if (count == 0) {
       EXPECT_EQ(plp.Size(), 5);
     }
@@ -50,7 +50,7 @@ TEST(MutectBam, NormalPileupTraverse) {
 
   PileupTraverse traverse(fun, &data);
   while (traverse.HasNext()) {
-    ReadBackedPileup plp = traverse.Next();
+    ReadBackedRawPileup plp = traverse.Next();
     if (plp.GetPos() == 15482483) {
       EXPECT_EQ(plp.Size(), 158);
       break;
@@ -67,7 +67,7 @@ TEST(MutectBam, TumorPileupTraverse) {
 
   PileupTraverse traverse(fun, &data);
   while (traverse.HasNext()) {
-    ReadBackedPileup plp = traverse.Next();
+    ReadBackedRawPileup plp = traverse.Next();
     if (plp.GetPos() == 15482483) {
       EXPECT_EQ(plp.Size(), 266);
       break;

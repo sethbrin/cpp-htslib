@@ -6,6 +6,7 @@
 #define MUTECT_MUTECT_H_
 
 #include "mutect_args.h"
+#include "locus_read_pile.h"
 
 #include <easehts/genome_loc.h>
 #include <easehts/noncopyable.h>
@@ -52,9 +53,14 @@ class Worker : public easehts::NonCopyable {
     easehts::BAMIndexReader* reader;
   } InputData;
 
-  void PrepareCondidate(int contig_id, int pos,
-                        LocusReadPile& normal_read_pile,
-                        LocusReadPile& tumor_read_pile);
+  void PrepareCondidate(const easehts::GenomeLoc& location,
+                        const uint64_t min_contig_pos,
+                        const std::vector<easehts::PileupTraverse>& tumor_traverses,
+                        const std::vector<easehts::PileupTraverse>& normal_traverses);
+
+
+  const static std::string kValidBases;
+  const static int kMinQSumQScore;
 
   MutectArgs& mutect_args_;
   easehts::IndexedFastaSequenceFile& reference_;

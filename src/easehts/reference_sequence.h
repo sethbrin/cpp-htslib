@@ -8,6 +8,7 @@
 
 #include "sam_sequence_dictionary.h"
 #include "noncopyable.h"
+#include "genome_loc.h"
 
 #include <stdlib.h>
 #include <set>
@@ -40,6 +41,21 @@ class ReferenceSequence : public NonCopyable {
     this->len = rhs.len;
     rhs.base = nullptr;
     return *this;
+  }
+
+  int Size() const {
+    return len;
+  }
+
+  char& operator[](size_t idx) {
+    return base[idx];
+  }
+
+  char& At(size_t idx) {
+    ERROR_COND(idx >= len,
+        utils::StringFormatCStr("out of bound error, the size is %d, and get %d", len, idx));
+
+    return base[idx];
   }
 
   ~ReferenceSequence() {
@@ -89,8 +105,8 @@ class AbstractFastaSequenceFile : public NonCopyable {
   /**
    * Gets the subsequence of the contig in the range [start,stop]
    * @param contig Contig whose subsequence to retrieve.
-   * @param start inclusive, 1-based start of region.
-   * @param stop inclusive, 1-based stop of region.
+   * @param start inclusive, 0-based start of region.
+   * @param stop inclusive, 0-based stop of region.
    * @return The partial reference sequence associated with this range.
    */
   virtual ReferenceSequence GetSequenceAt(const std::string& contig, int start, int stop) = 0;

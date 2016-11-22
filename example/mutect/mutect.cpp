@@ -1,5 +1,6 @@
 #include "mutect.h"
 #include "locus_read_pile.h"
+#include "candidate_mutation.h"
 
 #include <easehts/genome_loc.h>
 
@@ -11,10 +12,11 @@
 namespace ncic {
 namespace mutect {
 
+const std::string Worker::kValidBases = "ACGT";
+const int Worker::kMinQSumQScore = 13;
+
 void Worker::Run(const easehts::GenomeLoc& interval) {
   //printf("run: %s\n", interval.ToString().c_str());
-  LocusReadPile normal_read_pile(SampleType::NORMAL);
-  LocusReadPile tumor_read_pile(SampleType::TUMOR);
 
   std::vector<easehts::PileupTraverse> normal_traverses;
   std::vector<easehts::PileupTraverse> tumor_traverses;
@@ -22,7 +24,7 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
   int overlap_size = mutect_args_.overlap_size.getValue();
   for (easehts::BAMIndexReader& reader : normal_readers_) {
     InputData input_data;
-    reader.SetRegion(interval.GetContigIndex(),
+    reader.SetRegion(interval.GetContigId(),
                      interval.GetStart() - overlap_size,
                      interval.GetStop() + overlap_size);
     input_data.reader = &reader;
@@ -31,7 +33,7 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
 
   for (easehts::BAMIndexReader& reader : tumor_readers_) {
     InputData input_data;
-    reader.SetRegion(interval.GetContigIndex(),
+    reader.SetRegion(interval.GetContigId(),
                      interval.GetStart() - overlap_size,
                      interval.GetStop() + overlap_size);
     input_data.reader = &reader;
@@ -66,43 +68,65 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
     cur_site = min_contig_pos;
     int cur_pos = (int)cur_site;
     int cur_contig_id = (int)(cur_site >> 32);
-    ERROR_COND(cur_contig_id != interval.GetContigIndex(),
-               easehts::utils::StringFormatCStr("the contig[%d] is not equal to the interval contig id[%d]",
-                                                cur_contig_id, interval.GetContigIndex()));
-    if (cur_pos < interval.GetStart() ||
-        cur_pos > interval.GetStop()) {
+
+    ERROR_COND(cur_contig_id != interval.GetContigId(),
+               easehts::utils::StringFormatCStr(
+                   "the contig[%d] is not equal to the interval contig id[%d]",
+                   cur_contig_id, interval.GetContigId()));
+
+    if (cur_pos < interval.GetStart()) {
       continue;
     }
-
-    for(auto& traverse : tumor_traverses) {
-      if (traverse.CurrentPileup().GetContigPos() == min_contig_pos) {
-        tumor_read_pile.AddPileupElement(traverse.CurrentPileup());
-      }
+    if (cur_pos > interval.GetStop()) {
+      return;
     }
 
-    for(auto& traverse : normal_traverses) {
-      if (traverse.CurrentPileup().GetContigPos() == min_contig_pos) {
-        normal_read_pile.AddPileupElement(traverse.CurrentPileup());
-      }
-    }
+    easehts::GenomeLoc location(interval.GetContig(), interval.GetContigId(),
+                                cur_pos, cur_pos);
 
-    if (normal_read_pile.Size() == 0 &&
-        tumor_read_pile.Size() == 0) {
-      break;
-    }
-
-    WARN(easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
-                                          cur_contig_id, cur_pos,
-                                          normal_read_pile.Size() +
-                                          tumor_read_pile.Size()));
-    normal_read_pile.Reset();
-    tumor_read_pile.Reset();
+    PrepareCondidate(location, min_contig_pos, tumor_traverses, normal_traverses);
   }
 }
 
-void Worker::PrepareCondidate(int contig_id, int pos,
-                              LocusReadPile& normal_read_pile,
-                              LocusReadPile& tumor_read_pile) {
+void Worker::PrepareCondidate(const easehts::GenomeLoc& location,
+                              const uint64_t min_contig_pos,
+                              const std::vector<easehts::PileupTraverse>& tumor_traverses,
+                              const std::vector<easehts::PileupTraverse>& normal_traverses) {
+  const char up_ref = std::toupper(reference_.GetSequenceAt(location.GetContig(),
+      location.GetStart(), location.GetStop())[0]);
+  // only process bases where the reference is [ACGT], because the FASTA
+  // for HG18 has N,M and R!
+  if (kValidBases.find(up_ref) == std::string::npos) {
+    return;
+  }
+  LocusReadPile normal_read_pile(SampleType::NORMAL, up_ref, mutect_args_.min_qscore.getValue(),
+                                 0, true, true, mutect_args_.enable_qscore_output.getValue());
+  LocusReadPile tumor_read_pile(SampleType::TUMOR, up_ref, mutect_args_.min_qscore.getValue(),
+                                kMinQSumQScore, false, mutect_args_.artifact_detection_mode.getValue(),
+                                mutect_args_.enable_qscore_output.getValue());
+  for(auto& traverse : tumor_traverses) {
+    if (traverse.CurrentPileup().GetContigPos() == min_contig_pos) {
+      tumor_read_pile.AddPileupElement(traverse.CurrentPileup());
+    }
+  }
+
+  for(auto& traverse : normal_traverses) {
+    if (traverse.CurrentPileup().GetContigPos() == min_contig_pos) {
+      normal_read_pile.AddPileupElement(traverse.CurrentPileup());
+    }
+  }
+
+  if (normal_read_pile.Size() == 0 &&
+      tumor_read_pile.Size() == 0) {
+    return;
+  }
+  WARN(easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
+                                        location.GetContigId(), location.GetStart(),
+                                        normal_read_pile.Size() +
+                                        tumor_read_pile.Size()));
+
+  tumor_read_pile.InitPileups();
+  normal_read_pile.InitPileups();
 }
 
 int Worker::Input(void *data, bam1_t *b) {

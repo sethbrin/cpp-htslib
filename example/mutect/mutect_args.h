@@ -21,7 +21,11 @@ class MutectArgs : public ncic::easehts::NonCopyable {
     output_file('o', "out", true, "output file"),
     vcf_file('v', "vcf", true, "output vcf file"),
     thread_cnt('t', "nthreads", false, 1, "number of threads"),
-    overlap_size('O', "overlap_size", false, 3000, "the size of overlap_size, default is 3000") {
+    overlap_size('O', "overlap_size", false, 3000, "the size of overlap_size, default is 3000"),
+    min_qscore('q', "min_qscore", false, 5, "threshold for minimum base quality score"),
+    artifact_detection_mode('a', "artifact_detection_mode", false, "used when running the caller on a normal (as if it were a tumor) to detect artifacts"),
+    enable_qscore_output('e', "enable_qscore_output", false, "output quality scores of all bases used for ref and alt")
+  {
 
     easehts::ArgsParser parser;
     parser.addOption(interval_file)
@@ -31,7 +35,10 @@ class MutectArgs : public ncic::easehts::NonCopyable {
       .addOption(output_file)
       .addOption(vcf_file)
       .addOption(thread_cnt)
-      .addOption(overlap_size);
+      .addOption(overlap_size)
+      .addOption(min_qscore)
+      .addOption(artifact_detection_mode)
+      .addOption(enable_qscore_output);
 
     parser.parse(argc, argv);
   }
@@ -44,7 +51,9 @@ class MutectArgs : public ncic::easehts::NonCopyable {
   easehts::StringOption vcf_file;
   easehts::IntegerOption thread_cnt;
   easehts::IntegerOption overlap_size;
-
+  easehts::IntegerOption min_qscore;
+  easehts::BoolOption artifact_detection_mode;
+  easehts::BoolOption enable_qscore_output;
 };
 
 } // mutect

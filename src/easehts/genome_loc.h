@@ -29,10 +29,10 @@ class GenomeLoc {
    * the basic components of a genome loc, its contig index,
    * start and stop position, and (optionally) the contig name
    */
-  GenomeLoc(const std::string& contig, int contig_index,
+  GenomeLoc(const std::string& contig, int contig_id,
             int start, int stop)
     : contig_name_(contig),
-    contig_index_(contig_index),
+    contig_id_(contig_id),
     start_(start),
     stop_(stop) {}
 
@@ -59,9 +59,9 @@ class GenomeLoc {
    * @return 0 if equal, -1 if that.contig is greater, 1 if this contig is greater
    */
   int CompareContigs(const GenomeLoc& that) const {
-    if (contig_index_ == that.contig_index_) {
+    if (contig_id_ == that.contig_id_) {
       return 0;
-    } else if (contig_index_ > that.contig_index_) {
+    } else if (contig_id_ > that.contig_id_) {
       return 1;
     } else {
       return -1;
@@ -72,8 +72,8 @@ class GenomeLoc {
     return contig_name_;
   }
 
-  int GetContigIndex() const {
-    return contig_index_;
+  int GetContigId() const {
+    return contig_id_;
   }
 
   int GetStart() const {
@@ -89,11 +89,11 @@ class GenomeLoc {
   }
 
   GenomeLoc GetStartLocation() {
-    return GenomeLoc(GetContig(), GetContigIndex(), GetStart(), GetStart());
+    return GenomeLoc(GetContig(), GetContigId(), GetStart(), GetStart());
   }
 
   GenomeLoc GetStopLocation() {
-    return GenomeLoc(GetContig(), GetContigIndex(), GetStop(), GetStop());
+    return GenomeLoc(GetContig(), GetContigId(), GetStop(), GetStop());
   }
 
   std::string ToString() const {
@@ -108,7 +108,7 @@ class GenomeLoc {
 
   }
 
-  int contig_index_;
+  int contig_id_;
   int start_;
   int stop_;
   std::string contig_name_;
@@ -192,7 +192,7 @@ class GenomeLocParser : public NonCopyable {
    */
   bool ValidateGenomeLoc(const std::string& contig, int start,
                          int stop, bool must_be_on_reference) const;
-  int GetContigIndex(const std::string& contig) const;
+  int GetContigId(const std::string& contig) const;
 
  private:
     const SAMSequenceDictionary& ref_header_;

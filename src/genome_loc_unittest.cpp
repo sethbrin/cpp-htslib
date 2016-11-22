@@ -30,5 +30,5 @@ TEST(IntervalFileToList, IntervalUtils) {
   std::vector<GenomeLoc> genome_locs =
     IntervalUtils::IntervalFileToList(parser, interval_file);
   EXPECT_EQ(genome_locs.size(), 16173);
-  EXPECT_EQ(genome_locs[0], GenomeLoc("1", 0, 2488077, 2488197));
+  EXPECT_EQ(genome_locs[0], GenomeLoc("1", 0, 2488076, 2488196));
 }

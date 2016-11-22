@@ -5,6 +5,7 @@ set(SOURCE_FILES
     sam_bam_reader.cpp
     sam_bam_record.cpp
     reference_sequence.cpp
+    pileup.cpp
 )
 
 add_library(easehtslib ${SOURCE_FILES})
