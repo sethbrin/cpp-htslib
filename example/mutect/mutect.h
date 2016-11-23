@@ -42,6 +42,8 @@ class Worker : public easehts::NonCopyable {
         entry != normal_values.end(); ++entry) {
       normal_readers_.emplace_back(*entry);
     }
+
+    has_normal_bam_ = normal_readers_.size() != 0;
   }
 
   void Run(const easehts::GenomeLoc& interval);
@@ -53,10 +55,13 @@ class Worker : public easehts::NonCopyable {
     easehts::BAMIndexReader* reader;
   } InputData;
 
-  void PrepareCondidate(const easehts::GenomeLoc& location,
-                        const uint64_t min_contig_pos,
-                        const std::vector<easehts::PileupTraverse>& tumor_traverses,
-                        const std::vector<easehts::PileupTraverse>& normal_traverses);
+  void PrepareResult(const easehts::GenomeLoc& location,
+                     const uint64_t min_contig_pos,
+                     const std::vector<easehts::PileupTraverse>& tumor_traverses,
+                     const std::vector<easehts::PileupTraverse>& normal_traverses);
+
+  void PrepareCondidate(const LocusReadPile& tumor_read_pile,
+                        const LocusReadPile& normal_read_pile);
 
 
   const static std::string kValidBases;
@@ -67,6 +72,7 @@ class Worker : public easehts::NonCopyable {
 
   std::vector<easehts::BAMIndexReader> tumor_readers_;
   std::vector<easehts::BAMIndexReader> normal_readers_;
+  bool has_normal_bam_;
 };
 
 class Mutect : public easehts::NonCopyable {

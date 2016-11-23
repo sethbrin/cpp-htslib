@@ -1,7 +1,13 @@
 #include "locus_read_pile.h"
 
+#include <easehts/pileup.h>
+#include <vector>
+#include <cmath>
+
 namespace ncic {
 namespace mutect {
+
+const int LocusReadPile::kGapEventProximity = 5; // a 11bp window
 
 LocusReadPile::LocusReadPile(SampleType sample_type, char ref_base, int min_quality_score,
                              int min_qsum_quality_score, bool allow_mapq0_for_qual_sum,
@@ -12,7 +18,10 @@ LocusReadPile::LocusReadPile(SampleType sample_type, char ref_base, int min_qual
     min_qsum_quality_score_(min_qsum_quality_score),
     allow_mapq0_for_qual_sum_(allow_mapq0_for_qual_sum),
     retain_overlap_mismatches_(retain_overlap_mismatches),
-    track_base_quality_socres_(track_base_quality_socres) {
+    track_base_quality_socres_(track_base_quality_socres),
+    quality_sums_(track_base_quality_socres),
+    deletions_count_(0),
+    insertion_count_(0) {
 
 }
 
@@ -44,6 +53,46 @@ void LocusReadPile::InitPileups() {
 
   tmp_pileup.GetPositiveStrandPileup(&final_pileup_positive_strand_);
   tmp_pileup.GetNegativeStrandPileup(&final_pileup_negative_strand_);
+
+  for (size_t idx=0; idx<quality_score_filter_pileup_.Size(); idx++) {
+    const easehts::PileupElement& p = quality_score_filter_pileup_[idx];
+    if (p.GetMappingQuality() == 0 &&
+        !allow_mapq0_for_qual_sum_) continue;
+    if (p.GetQual() <= min_qsum_quality_score_) continue;
+    if (p.GetQual() > min_qsum_quality_score_) {
+      quality_sums_.IncrementSum(p.GetBase(), 1, p.GetQual());
+    }
+  }
+
+
+  // Calculate how many are at this site and how many insertion
+  // are within INSERTION_PROXIMITY bp
+  for (size_t idx=0; idx<quality_score_filter_pileup_.Size(); idx++) {
+    const easehts::PileupElement& p = quality_score_filter_pileup_[idx];
+    if (p.GetBase() == easehts::PileupElement::kDeletionBase) {
+      deletions_count_++;
+    } else {
+      // check for nearby events
+      std::vector<easehts::CigarElement> cigars =
+        easehts::SAMBAMRecord::ParseRawCigar(p.GetRead());
+      int event_start = 0;
+      for (const easehts::CigarElement& cigar : cigars) {
+        if (cigar.GetOperator() == easehts::CigarElement::INSERTION &&
+            std::abs(event_start - p.GetOffset()) < kGapEventProximity) {
+          insertion_count_ ++;
+          break;
+        }
+
+        if (cigar.GetOperator() == easehts::CigarElement::DELETION &&
+            std::abs(event_start - p.GetOffset()) < kGapEventProximity) {
+          deletions_count_ ++;
+          break;
+        }
+
+        event_start += cigar.GetLength();
+      }
+    }
+  }
 }
 
 } // mutect

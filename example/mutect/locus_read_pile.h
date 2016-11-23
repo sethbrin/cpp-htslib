@@ -5,6 +5,8 @@
 #ifndef MUTECT_LOCUS_READ_PILE_H_
 #define MUTECT_LOCUS_READ_PILE_H_
 
+#include "quality_sums.h"
+
 #include <easehts/noncopyable.h>
 #include <easehts/pileup.h>
 
@@ -37,13 +39,18 @@ class LocusReadPile : public easehts::NonCopyable {
     return pileup_.Size();
   }
 
- private:
+ public:
+  const static int kGapEventProximity;
+
+ public:
   easehts::ReadBackedPileup pileup_;
   easehts::ReadBackedPileup initial_pileup_;
   easehts::ReadBackedPileup quality_score_filter_pileup_;
   easehts::ReadBackedPileup final_pileup_;
   easehts::ReadBackedPileup final_pileup_positive_strand_;
   easehts::ReadBackedPileup final_pileup_negative_strand_;
+
+  QualitySums quality_sums_;
 
   SampleType sample_type_;
   char ref_base_;
@@ -52,6 +59,8 @@ class LocusReadPile : public easehts::NonCopyable {
   bool allow_mapq0_for_qual_sum_;
   bool retain_overlap_mismatches_;
   bool track_base_quality_socres_;
+  int deletions_count_;
+  int insertion_count_;
 };
 
 } // mutect

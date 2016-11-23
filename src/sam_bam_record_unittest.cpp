@@ -36,3 +36,19 @@ TEST(SAMFlag, value) {
   EXPECT_EQ(SAMFlag::READ_PAIRED, 0x1);
   EXPECT_EQ(SAMFlag::NOT_PRIMARY_ALIGNMENT, 0x100);
 }
+
+TEST(SAMBAMRecord, CigarElement) {
+  CigarElement element('M', 100);
+  EXPECT_EQ(element.ToString(), "100M");
+}
+
+TEST(SAMBAMRecord, GetCigarString) {
+  TEST_FILE("uncompressed.sam", filename);
+  SAMBAMTextReader reader(filename);
+
+  SAMBAMRecord record;
+
+  if (reader.HasNext(&record)) {
+    EXPECT_EQ(record.GetCigarString(), "8M2I");
+  }
+}

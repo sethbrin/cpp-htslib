@@ -15,6 +15,41 @@ namespace ncic {
 
 namespace easehts {
 
+class CigarElement {
+ public:
+  CigarElement(char op, int length)
+    : operator_(op),
+    length_(length) {}
+
+  char GetOperator() const {
+    return operator_;
+  }
+
+  int GetLength() const {
+    return length_;
+  }
+
+  std::string ToString() const {
+    return std::to_string(length_) + operator_;
+  }
+
+  // MIDNSHP=XB
+  enum {
+    MATCH = 'M',
+    INSERTION = 'I',
+    DELETION = 'D',
+    SKIPPED_REGION = 'N',
+    SOFT_CLIP = 'S',
+    HARD_CLIP = 'H',
+    PADDING = 'P',
+    EQUAL = '=',
+    MISMATCH = 'X'
+  };
+ private:
+  const char operator_;
+  const int length_;
+};
+
 enum SAMFlag {
   // "Template having multiple segments in sequencing"
   READ_PAIRED = 0x1,
@@ -271,12 +306,53 @@ class SAMBAMRecord : public NonCopyable {
   static int GetMapQuality(bam1_t* b) {
     return b->core.qual;
   }
+
+  uint32_t* GetRawCigar() {
+    return bam_get_cigar(raw_record_);
+  }
+  static uint32_t* GetRawCigar(bam1_t* b) {
+    return bam_get_cigar(b);
+  }
+
+  int GetCigarLength() {
+    return raw_record_->core.n_cigar;
+  }
+  static int GetCigarLength(bam1_t* b) {
+    return b->core.n_cigar;
+  }
+
+  const std::vector<CigarElement>& GetCigar() {
+    if (cached_cigars_.empty()) {
+      cached_cigars_ = ParseRawCigar(raw_record_);
+    }
+    return cached_cigars_;
+  }
+
+  static std::vector<CigarElement> ParseRawCigar(bam1_t* b) {
+    std::vector<CigarElement> res;
+    uint32_t* cigars = GetRawCigar(b);
+    for (int idx=0; idx<b->core.n_cigar; idx++) {
+      res.push_back(CigarElement(bam_cigar_opchr(cigars[idx]),
+                                 bam_cigar_oplen(cigars[idx])));
+    }
+    return res;
+  }
+
+  std::string GetCigarString() {
+    std::vector<CigarElement> elements = ParseRawCigar(raw_record_);
+    std::string res;
+    for (const CigarElement& element : elements) {
+      res += element.ToString();
+    }
+    return res;
+  }
+
  private:
   bam1_t* raw_record_;
 
   // once decode the sequence field, it cached
   std::string cached_sequence_;
-
+  std::vector<CigarElement> cached_cigars_;
 };
 
 } // easehts

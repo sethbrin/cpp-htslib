@@ -9,6 +9,9 @@
 namespace ncic {
 namespace easehts {
 
+const char PileupElement::kDeletionBase = 'D';
+const char PileupElement::kDeletionQual = (char)16;
+
 const int ReadBackedPileup::kUninitializedCachedIntValue = -1;
 
 void ReadBackedPileup::GetPileupByFilter(ReadBackedPileup* pPileup,
@@ -20,6 +23,18 @@ void ReadBackedPileup::GetPileupByFilter(ReadBackedPileup* pPileup,
       pPileup->AddElement(elements_[i]);
     }
   }
+}
+
+int ReadBackedPileup::GetPileupByFilterCount(
+    std::function<bool (PileupElement element)> pred) const {
+  int cnt = 0;
+  int size = elements_.size();
+  for (int i = 0; i < size; i++) {
+    if (pred(elements_[i])) {
+      cnt ++;
+    }
+  }
+  return cnt;
 }
 
 // FIXME here just copy to pPileup and ignore number_of_deletions_
@@ -49,6 +64,15 @@ void ReadBackedPileup::GetBaseAndMappingFilteredPileup(
 void ReadBackedPileup::GetBaseFilteredPileup(int min_base_quality,
                                              ReadBackedPileup* pPileup) {
   return GetBaseAndMappingFilteredPileup(min_base_quality, -1, pPileup);
+}
+
+
+int ReadBackedPileup::GetBaseFilteredPileupCount(int min_base_quality) const {
+  auto pred = [min_base_quality](PileupElement element)->bool {
+    return (element.IsDeletion() || element.GetQual() >= min_base_quality);
+  };
+  return GetPileupByFilterCount(pred);
+
 }
 
 void ReadBackedPileup::GetMappingFilteredPileup(int min_map_quality,

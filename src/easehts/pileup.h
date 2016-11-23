@@ -2,6 +2,9 @@
 // Created by zp on 11/20/16.
 //
 
+#ifndef EASEHTSLIB_PILEUP_H_ 
+#define EASEHTSLIB_PILEUP_H_
+
 #include "noncopyable.h"
 #include "utils.h"
 #include "sam_bam_record.h"
@@ -70,12 +73,25 @@ class PileupElement {
     return element_->is_del ? 'D' : base_;
   }
 
+  int GetMappingQuality() const {
+    return SAMBAMRecord::GetMapQuality(element_->b);
+  }
+
+  int GetOffset() const {
+    return element_->qpos;
+  }
+
+ public:
+  const static char kDeletionBase;
+  const static char kDeletionQual;
+
  private:
   const bam_pileup1_t* element_;
 
   // TODO cache some field which may compute many times
   uint8_t qual_;
   uint8_t base_;
+
 };
 
 class ReadBackedPileup;
@@ -219,6 +235,7 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
    */
   void GetBaseFilteredPileup(int min_base_quality, ReadBackedPileup* pPileup);
 
+  int GetBaseFilteredPileupCount(int min_base_quality) const;
   /**
    * Get subset of this pileup only bases with
    * mapping quality >= min_quality_score
@@ -236,6 +253,11 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
   void GetPileupByFilter(ReadBackedPileup* pPileup,
                          std::function<bool (PileupElement element)> pred);
 
+  /**
+   * Get the count which satisfy the pred
+   */
+  int GetPileupByFilterCount(std::function<bool (PileupElement element)> pred) const;
+
   void GetPositiveStrandPileup(ReadBackedPileup* pPileup);
 
   void GetNegativeStrandPileup(ReadBackedPileup* pPileup);
@@ -250,6 +272,7 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
    */
   void GetOverlappingFragmentFilteredPileup(ReadBackedPileup* pPileup,
                                             uint8_t ref, bool retain_mismatches);
+
 
  private:
   const static int kUninitializedCachedIntValue;
@@ -338,3 +361,5 @@ class PileupTraverse : public NonCopyable {
 
 } // easehts
 } // ncic
+
+#endif

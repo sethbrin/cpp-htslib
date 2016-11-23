@@ -7,3 +7,9 @@ set(MUTECT_FILES
 
 add_executable(mutect ${MUTECT_FILES})
 target_link_libraries(mutect easehtslib)
+
+if (test)
+    link_libraries(gtest gtest_main)
+
+    create_test(power_calculator_unittest)
+endif()

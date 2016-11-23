@@ -84,14 +84,14 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
     easehts::GenomeLoc location(interval.GetContig(), interval.GetContigId(),
                                 cur_pos, cur_pos);
 
-    PrepareCondidate(location, min_contig_pos, tumor_traverses, normal_traverses);
+    PrepareResult(location, min_contig_pos, tumor_traverses, normal_traverses);
   }
 }
 
-void Worker::PrepareCondidate(const easehts::GenomeLoc& location,
-                              const uint64_t min_contig_pos,
-                              const std::vector<easehts::PileupTraverse>& tumor_traverses,
-                              const std::vector<easehts::PileupTraverse>& normal_traverses) {
+void Worker::PrepareResult(const easehts::GenomeLoc& location,
+                           const uint64_t min_contig_pos,
+                           const std::vector<easehts::PileupTraverse>& tumor_traverses,
+                           const std::vector<easehts::PileupTraverse>& normal_traverses) {
   const char up_ref = std::toupper(reference_.GetSequenceAt(location.GetContig(),
       location.GetStart(), location.GetStop())[0]);
   // only process bases where the reference is [ACGT], because the FASTA
@@ -127,6 +127,34 @@ void Worker::PrepareCondidate(const easehts::GenomeLoc& location,
 
   tumor_read_pile.InitPileups();
   normal_read_pile.InitPileups();
+
+  PrepareCondidate(tumor_read_pile, normal_read_pile);
+}
+
+void Worker::PrepareCondidate(const LocusReadPile& tumor_read_pile,
+                              const LocusReadPile& normal_read_pile) {
+  // remove the effect of cosmic from dbSNP
+  // XXX current not support, just set false
+  bool germline_at_risk = false;
+
+  // compute coverage flags
+  int tumor_covered_depth_threshold = 14;
+  int normal_covered_depth_threshold = germline_at_risk ? 19 : 18;
+  if (!has_normal_bam_) {
+    normal_covered_depth_threshold = 0;
+  }
+
+  int tumor_base_count = tumor_read_pile.final_pileup_.Size();
+  int normal_base_count = normal_read_pile.final_pileup_.Size();
+
+  bool is_tumor_covered = tumor_base_count >= tumor_covered_depth_threshold;
+  bool is_normal_covered = normal_base_count >= normal_covered_depth_threshold;
+  bool is_base_covered = is_tumor_covered && is_normal_covered;
+  if (!has_normal_bam_) {
+    is_base_covered  = is_tumor_covered;
+  }
+  int tumor_q20_base_count = tumor_read_pile.final_pileup_.GetBaseFilteredPileupCount(20);
+  int normal_q20_base_count = normal_read_pile.final_pileup_.GetBaseFilteredPileupCount(20);
 }
 
 int Worker::Input(void *data, bam1_t *b) {
@@ -180,6 +208,7 @@ void Mutect::Run() {
     workers[i].join();
   }
 }
+
 
 } // mutect
 } // ncic
