@@ -62,6 +62,10 @@ class ReferenceSequence : public NonCopyable {
     ::free(base);
   }
 
+  std::string ToString() const {
+    return std::string(base, len);
+  }
+
   char* base;
   int len;
 };
@@ -203,6 +207,7 @@ class FastaIndex {
     return ref_seq;
   }
 
+  
   /**
    * Build index for a FASTA or bgzip-compressed FASTA file.
    * @param  fn  FASTA file name
@@ -266,6 +271,19 @@ class IndexedFastaSequenceFile : public AbstractFastaSequenceFile {
   ReferenceSequence GetSequenceAt(const std::string& contig, int start, int stop) override {
     return fasta_index_.GetSequence(contig, start, stop);
   }
+
+  /**
+   * Create a string that [start-size, start+size]
+   * the start pos change to 'x'
+   */
+  std::string CreateSequenceContext(const GenomeLoc& loc, int size) {
+    std::string res = fasta_index_.GetSequence(loc.GetContig().c_str(),
+                                               loc.GetStart() - size,
+                                               loc.GetStart() + size).ToString();
+    res[3] = 'x';
+    return res;
+  }
+
 
  private:
   FastaIndex fasta_index_;

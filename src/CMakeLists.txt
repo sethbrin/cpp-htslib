@@ -6,6 +6,10 @@ set(SOURCE_FILES
     sam_bam_record.cpp
     reference_sequence.cpp
     pileup.cpp
+    binomial_distribution.cpp
+    base_utils.cpp
+    diploid_SNP_genotype_likelihoods.cpp
+    diploid_genotype.cpp
 )
 
 add_library(easehtslib ${SOURCE_FILES})

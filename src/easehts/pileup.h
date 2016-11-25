@@ -267,11 +267,18 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
    */
   int GetNumberOfDeletions();
 
+  int GetNumberofMappingQualityZeroReads() const;
+
   /**
    * Filter the reads with the same read name
    */
   void GetOverlappingFragmentFilteredPileup(ReadBackedPileup* pPileup,
                                             uint8_t ref, bool retain_mismatches);
+
+  /**
+   * Get the base count
+   */
+  std::vector<int> GetBaseCounts() const ;
 
 
  private:

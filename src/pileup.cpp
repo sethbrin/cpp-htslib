@@ -1,5 +1,6 @@
 #include "easehts/pileup.h"
 #include "easehts/sam_bam_record.h"
+#include "easehts/base_utils.h"
 
 #include <assert.h>
 #include <string>
@@ -154,6 +155,13 @@ void ReadBackedPileup::GetOverlappingFragmentFilteredPileup(ReadBackedPileup* pP
 
 }
 
+int ReadBackedPileup::GetNumberofMappingQualityZeroReads() const {
+  auto pred = [](PileupElement element)->bool {
+    return SAMBAMRecord::GetMapQuality(element.GetRead()) == 0;
+  };
+  GetPileupByFilterCount(pred);
+}
+
 int ReadBackedPileup::GetNumberOfDeletions() {
   if (number_of_deletions_ == kUninitializedCachedIntValue) {
     number_of_deletions_ = 0;
@@ -165,6 +173,20 @@ int ReadBackedPileup::GetNumberOfDeletions() {
     }
   }
   return number_of_deletions_;
+}
+
+std::vector<int> ReadBackedPileup::GetBaseCounts() const {
+  std::vector<int> counts(4);
+
+  for (const auto& pile : elements_) {
+    if (!pile.IsDeletion()) {
+      int index = BaseUtils::SimpleBaseToBaseIndex(pile.GetBase());
+      if (index != -1) {
+        counts[index]++;
+      }
+    }
+  }
+  return counts;
 }
 
 } // easehts

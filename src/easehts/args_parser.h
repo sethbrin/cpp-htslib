@@ -452,6 +452,10 @@ class Option : public BaseOption {
 
     }
 
+    void setValue(TYPE val) {
+      value = val;
+    }
+
 
     protected:
     // configuration

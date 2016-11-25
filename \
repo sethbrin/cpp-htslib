@@ -1,0 +1,19 @@
+//
+// Created by zp on 11/25/16.
+//
+
+#ifndef MUTECT_VARIABLE_ALLELIC_RATIO_GENOTYPE_LKEELIHOODS_H_
+#define MUTECT_VARIABLE_ALLELIC_RATIO_GENOTYPE_LKEELIHOODS_H_
+
+namespace ncic {
+namespace mutect {
+
+class VariableAllelicRatioGenotypeLikelihoods
+  : easehts::DiploidSNPGenotypeLikelihoods {
+};
+
+} // mutect
+} // ncic
+
+
+#endif

@@ -117,7 +117,8 @@ void Worker::PrepareResult(const easehts::GenomeLoc& location,
   }
 
   if (normal_read_pile.Size() == 0 &&
-      tumor_read_pile.Size() == 0) {
+      tumor_read_pile.Size() == 0 &&
+      !mutect_args_.force_output.getValue()) {
     return;
   }
   WARN(easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
@@ -128,11 +129,14 @@ void Worker::PrepareResult(const easehts::GenomeLoc& location,
   tumor_read_pile.InitPileups();
   normal_read_pile.InitPileups();
 
-  PrepareCondidate(tumor_read_pile, normal_read_pile);
+  PrepareCondidate(up_ref, location, tumor_read_pile, normal_read_pile);
 }
 
-void Worker::PrepareCondidate(const LocusReadPile& tumor_read_pile,
-                              const LocusReadPile& normal_read_pile) {
+void Worker::PrepareCondidate(
+    const char up_ref,
+    const easehts::GenomeLoc& location,
+    const LocusReadPile& tumor_read_pile,
+    const LocusReadPile& normal_read_pile) {
   // remove the effect of cosmic from dbSNP
   // XXX current not support, just set false
   bool germline_at_risk = false;
@@ -153,8 +157,85 @@ void Worker::PrepareCondidate(const LocusReadPile& tumor_read_pile,
   if (!has_normal_bam_) {
     is_base_covered  = is_tumor_covered;
   }
-  int tumor_q20_base_count = tumor_read_pile.final_pileup_.GetBaseFilteredPileupCount(20);
-  int normal_q20_base_count = normal_read_pile.final_pileup_.GetBaseFilteredPileupCount(20);
+  int tumor_q20_base_count = tumor_read_pile.final_pileup_
+    .GetBaseFilteredPileupCount(20);
+  int normal_q20_base_count = normal_read_pile.final_pileup_
+    .GetBaseFilteredPileupCount(20);
+
+  // calculate power
+  double tumor_power = tumor_power_calculator_
+    .CachingPowerCalculation(
+        tumor_base_count,
+        mutect_args_.power_contant_af.getValue());
+  double normal_power_no_snp_prior = normal_novel_site_power_calculator_
+    .CachingPowerCalculation(normal_base_count);
+  double normal_power_with_snp_prior = normal_db_snp_site_power_calculator_
+    .CachingPowerCalculation(normal_base_count);
+
+  double normal_power = germline_at_risk ? normal_power_with_snp_prior : normal_power_no_snp_prior;
+
+  double combine_power = tumor_power * normal_power;
+  if (!has_normal_bam_) {
+    combine_power = tumor_power;
+  }
+
+  int map_q0_reads =
+    tumor_read_pile.quality_score_filter_pileup_.GetNumberofMappingQualityZeroReads() +
+    normal_read_pile.quality_score_filter_pileup_.GetNumberofMappingQualityZeroReads();
+
+  int total_reads =
+    tumor_read_pile.quality_score_filter_pileup_.Size() +
+    normal_read_pile.quality_score_filter_pileup_.Size();
+
+  std::string sequence_context = reference_.CreateSequenceContext(location, 3);
+  // Test each of the possible alternate alleles
+  for (const char alt_allele : kValidBases) {
+    if (alt_allele == up_ref) continue;
+    if (!mutect_args_.force_output.getValue() &&
+        tumor_read_pile.quality_sums_.GetCounts(alt_allele) == 0) continue;
+
+    CandidateMutation candidate(location, up_ref);
+    candidate.sequence_context = sequence_context;
+    candidate.covered = is_base_covered;
+    candidate.power = combine_power;
+    candidate.tumor_power = tumor_power;
+    candidate.normal_power = normal_power;
+    candidate.normal_power_with_snp_prior = normal_power_with_snp_prior;
+    candidate.normal_power_no_snp_prior = normal_power_no_snp_prior;
+    candidate.tumor_q20_count = tumor_q20_base_count;
+    candidate.normal_q20_count = normal_q20_base_count;
+    candidate.initial_tumor_non_ref_quality_sum = tumor_read_pile.quality_sums_.GetOtherQualities(up_ref);
+    candidate.alt_allele = alt_allele;
+    candidate.map_q0_reads = map_q0_reads;
+    candidate.total_reads = total_reads;
+    candidate.contamination_fraction = mutect_args_.fraction_contamination.getValue();
+    // TODO
+    // candidate.contamination_fraction
+    // candidate.cosmic_site
+    // candidate.dbsnp_site
+    candidate.tumor_F = tumor_read_pile.EstimateAlleleFraction(up_ref, alt_allele);
+
+    if (!mutect_args_.force_output.getValue() &&
+        candidate.tumor_F < mutect_args_.tumor_f_pretest.getValue()) continue;
+
+    candidate.initial_tumor_alt_counts = tumor_read_pile.quality_sums_.GetCounts(alt_allele);
+    candidate.initial_tumor_ref_counts = tumor_read_pile.quality_sums_.GetCounts(up_ref);
+    candidate.initial_tumor_alt_quality_sum = tumor_read_pile.quality_sums_.GetQualitySum(alt_allele);
+    candidate.initial_tumor_ref_quality_sum = tumor_read_pile.quality_sums_.GetQualitySum(up_ref);
+
+    double tumor_lod = tumor_read_pile.CalculateAltVsRefLOD(alt_allele, candidate.tumor_F, 0);
+    candidate.tumor_lodF_star = tumor_lod;
+
+    candidate.initial_tumor_read_depth = tumor_read_pile.final_pileup_.Size();
+    candidate.tumor_insertion_count = tumor_read_pile.insertion_count_;
+    candidate.tumor_deletion_count = tumor_read_pile.deletions_count_;
+
+    if (candidate.tumor_lodF_star < mutect_args_.initial_tumor_lod_threshold.getValue()) continue;
+
+    // calculate lod of contaminant
+    double contaminant_F = std::min(contaminat_alternate_fraction_,
+                                    candidate.tumor_F);
+  }
 }
 
 int Worker::Input(void *data, bam1_t *b) {

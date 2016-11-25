@@ -20,7 +20,7 @@ class QualitySums : public easehts::NonCopyable {
       Reset();
   }
 
-  int GetQualitySum(char base) {
+  int GetQualitySum(char base) const {
     if (base == 'a' || base == 'A') return a_score_;
     if (base == 'c' || base == 'C') return c_score_;
     if (base == 'g' || base == 'G') return g_score_;
@@ -28,7 +28,7 @@ class QualitySums : public easehts::NonCopyable {
     ERROR(easehts::utils::StringFormatCStr("Unknown base:%c", base));
   }
 
-  int GetCounts(char base) {
+  int GetCounts(char base) const {
     if (base == 'a' || base == 'A') return a_count_;
     if (base == 'c' || base == 'C') return c_count_;
     if (base == 'g' || base == 'G') return g_count_;
@@ -71,7 +71,7 @@ class QualitySums : public easehts::NonCopyable {
     }
   }
 
-  int GetOtherQualities(char base) {
+  int GetOtherQualities(char base) const {
     int total = a_score_ + c_score_ + g_score_ + t_score_;
     if (base == 'a' || base == 'A') return total - a_score_;
     if (base == 'c' || base == 'C') return total - c_score_;
@@ -80,7 +80,7 @@ class QualitySums : public easehts::NonCopyable {
     ERROR(easehts::utils::StringFormatCStr("Unknown base:%c", base));
   }
 
-  const std::vector<int>& GetBaseQualityScors(char base) {
+  const std::vector<int>& GetBaseQualityScors(char base) const {
     if (base == 'a' || base == 'A') return a_quality_sum_;
     if (base == 'c' || base == 'C') return c_quality_sum_;
     if (base == 'g' || base == 'G') return g_quality_sum_;

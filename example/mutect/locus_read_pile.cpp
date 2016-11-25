@@ -1,6 +1,8 @@
 #include "locus_read_pile.h"
 
 #include <easehts/pileup.h>
+#include <easehts/base_utils.h>
+
 #include <vector>
 #include <cmath>
 
@@ -94,6 +96,47 @@ void LocusReadPile::InitPileups() {
     }
   }
 }
+
+
+double LocusReadPile::EstimateAlleleFraction(char ref, char alt) const {
+  return LocusReadPile::EstimateAlleleFraction(final_pileup_, ref, alt);
+}
+
+double LocusReadPile::EstimateAlleleFraction(
+    const easehts::ReadBackedPileup& read_backed_pileup,
+    char ref, char alt) {
+  std::vector<int> counts = read_backed_pileup.GetBaseCounts();
+  int ref_count = counts[easehts::BaseUtils::SimpleBaseToBaseIndex(ref)];
+  int alt_count = counts[easehts::BaseUtils::SimpleBaseToBaseIndex(alt)];
+
+  int depth = ref_count + alt_count;
+
+  return depth == 0 ? 0 : (static_cast<double>(alt_count)/ depth);
+}
+
+double LocusReadPile::CalculateLogLikelihood(
+    const easehts::ReadBackedPileup& read_backed_pileup,
+    char ref, char alt, double f) {
+  double ll = 0;
+  for (int i = 0; i < read_backed_pileup.Size(); i++) {
+    const easehts::PileupElement& element = read_backed_pileup[i];
+
+    char base = element.GetBase();
+    char qual = element.GetQual();
+
+    double e = std::pow(10, (qual / 10.0));
+
+    if (base == ref) {
+      ll += std::log10(f * e / 3 + (1 - f) * (1 - e));
+    } else if (base == alt) {
+      ll += std::log10(f * (1 - e) + (1 - f) * e / 3);
+    } else {
+      ll + std::log10(2 * e / 3);
+    }
+  }
+  return ll;
+}
+
 
 } // mutect
 } // ncic

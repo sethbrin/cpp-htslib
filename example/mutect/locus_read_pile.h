@@ -38,9 +38,32 @@ class LocusReadPile : public easehts::NonCopyable {
   int Size() const {
     return pileup_.Size();
   }
+  double EstimateAlleleFraction(char ref, char alt) const;
+
+  double CalculateAltVsRefLOD(const easehts::ReadBackedPileup& pileup,
+                              char alt, double alternate, double reference) const {
+    return CalculateAltVsRefLOD(pileup, ref_base_, alt, alternate, reference);
+  }
+
+  double CalculateAltVsRefLOD(char alt, double alternate, double reference) const {
+    return CalculateAltVsRefLOD(final_pileup_, alt, alternate, reference);
+  }
+
+  double CalculateAltVsRefLOD(const easehts::ReadBackedPileup& pileup, char ref,
+                              char alt, double alternate, double reference) const {
+    double lod_alt = LocusReadPile::CalculateLogLikelihood(pileup, ref, alt, alternate);
+    double lod_ref = LocusReadPile::CalculateLogLikelihood(pileup, ref, alt, reference);
+
+    return lod_alt - lod_ref;
+  }
 
  public:
   const static int kGapEventProximity;
+
+  static double EstimateAlleleFraction(const easehts::ReadBackedPileup& read_backed_pileup,
+                                char ref, char alt);
+  static double CalculateLogLikelihood(const easehts::ReadBackedPileup& read_backed_pileup,
+                                       char ref, char alt, double f);
 
  public:
   easehts::ReadBackedPileup pileup_;
