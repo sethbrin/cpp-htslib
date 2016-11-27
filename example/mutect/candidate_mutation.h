@@ -32,6 +32,20 @@ class CandidateMutation {
     rejection_reasons.push_back(reason);
   }
 
+  bool IsSeenInPanelOfNormals() const {
+    // TODO add VC
+    return false;
+  }
+
+  bool IsGermlineAtRisk() const {
+    // TODO
+    return false;
+  }
+
+  bool IsRejected() const {
+    return rejected;
+  }
+
   easehts::GenomeLoc location;
   std::string sequence_context;
   char ref_allele;

@@ -52,3 +52,13 @@ TEST(TumorPowerCalculator, CachingPowerCalculation) {
   EXPECT_NEAR(pc.CachingPowerCalculation(50, 0.15), 0.975342, wiggle);
   EXPECT_NEAR(pc.CachingPowerCalculation(50, 0.15), 0.975342, wiggle);
 }
+
+TEST(TumorPowerCalculator, DoubleKey) {
+  std::unordered_map<double, int> hash;
+  hash[1.3] = 3;
+  hash[2.6] = 8;
+
+  EXPECT_EQ(hash[1.3], 3);
+  EXPECT_EQ(hash[2.6], 8);
+  EXPECT_TRUE(hash.find(1.3) != hash.end());
+}

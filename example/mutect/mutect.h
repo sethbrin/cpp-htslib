@@ -8,6 +8,7 @@
 #include "mutect_args.h"
 #include "locus_read_pile.h"
 #include "power_calculator.h"
+#include "candidate_mutation.h"
 
 #include <easehts/genome_loc.h>
 #include <easehts/noncopyable.h>
@@ -115,6 +116,8 @@ class Worker : public easehts::NonCopyable {
       const easehts::ReadBackedPileup pileup,
       bool filter_mate_rescue_reads,
       easehts::ReadBackedPileup* pPileup);
+
+  void PerformRejection(CandidateMutation& candidate);
 
   const static std::string kValidBases;
   const static int kMinQSumQScore;

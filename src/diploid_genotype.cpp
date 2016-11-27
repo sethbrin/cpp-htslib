@@ -25,5 +25,6 @@ const int DiploidGenotype::kConversionMatrix[4][4] = {
 };
 
 
+
 } // easehts
 } // ncic

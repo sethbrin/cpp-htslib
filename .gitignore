@@ -6,3 +6,4 @@ build/
 src/unittest.h
 test/references/
 test/
+cmake-build-debug/

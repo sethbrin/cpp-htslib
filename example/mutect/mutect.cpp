@@ -15,6 +15,9 @@
 #include <functional>
 #include <thread>
 #include <vector>
+#include <unordered_map>
+#include <map>
+#include <memory>
 
 namespace ncic {
 namespace mutect {
@@ -205,13 +208,16 @@ void Worker::PrepareCondidate(
   easehts::GenomeLoc window(location.GetContig(), location.GetContigId(),
                             window_start, window_stop);
   easehts::ReferenceSequence ref_bases = reference_.GetSequenceAt(window);
+
+  std::map<double, CandidateMutation*> message_by_tumor_lod;
   // Test each of the possible alternate alleles
   for (const char alt_allele : kValidBases) {
     if (alt_allele == up_ref) continue;
     if (!force_output &&
         tumor_read_pile.quality_sums_.GetCounts(alt_allele) == 0) continue;
 
-    CandidateMutation candidate(location, up_ref);
+    CandidateMutation* pCandidate = new CandidateMutation(location, up_ref);
+    CandidateMutation& candidate = *pCandidate;
     candidate.sequence_context = sequence_context;
     candidate.covered = is_base_covered;
     candidate.power = combine_power;
@@ -420,8 +426,110 @@ void Worker::PrepareCondidate(
     }
 
     // test to see if the candidate should be rejected
+    PerformRejection(candidate);
 
+    if (mutect_args_.force_alleles.getValue()) {
+    } else {
+      message_by_tumor_lod[candidate.initial_normal_lod] = &candidate;
+    }
   }
+
+  // if more than one site passes the tumor lod threshold for KEEP the fail the
+  // tri_allelic site filter
+  int passing_candidates = 0;
+  for (const auto& c : message_by_tumor_lod) {
+    if (c.second->tumor_lodF_star >= mutect_args_.tumor_lod_threshold.getValue()) {
+      passing_candidates ++;
+    }
+  }
+
+  if (passing_candidates > 1) {
+    for (const auto& c : message_by_tumor_lod) {
+      c.second->AddRejectionReason("triallelic_site");
+    }
+  }
+
+  // write out call stats for the "best" candidate
+  if (!message_by_tumor_lod.empty()) {
+    const CandidateMutation& m = *(message_by_tumor_lod.rbegin()->second);
+
+    // only output passing calls OR rejected sites if ONLY_PASSING_CALLS is not
+    // specified
+    if (!m.IsRejected() ||
+        (!mutect_args_.only_passing_calls.getValue())) {
+    }
+  }
+
+  for (const auto& c : message_by_tumor_lod) {
+    delete c.second;
+  }
+}
+
+void Worker::PerformRejection(
+    CandidateMutation& candidate) {
+  if (candidate.tumor_lodF_star < mutect_args_.tumor_lod_threshold.getValue()) {
+    candidate.AddRejectionReason("fstar_tumor_lod");
+  }
+
+  if (mutect_args_.artifact_detection_mode.getValue()) return;
+
+  if (candidate.tumor_insertion_count >= mutect_args_.gap_events_threshold.getValue() ||
+      candidate.tumor_deletion_count >= mutect_args_.gap_events_threshold.getValue()) {
+    candidate.AddRejectionReason("nearby_gap_events");
+  }
+
+  if (mutect_args_.fraction_contamination.getValue() +
+      mutect_args_.minimum_mutation_cell_fraction.getValue() > 0 &&
+      candidate.tumor_lodF_star <= mutect_args_.tumor_lod_threshold.getValue() +
+      std::max(0.0, candidate.contaminant_lod)) {
+    candidate.AddRejectionReason("possible_contamination");
+  }
+
+  if (candidate.IsGermlineAtRisk() &&
+      candidate.initial_normal_lod < mutect_args_.normal_dbsnp_lod_threshold.getValue()) {
+    candidate.AddRejectionReason("germline_risk");
+  }
+
+  if (candidate.initial_normal_lod < mutect_args_.normal_lod_threshold.getValue()) {
+    candidate.AddRejectionReason("normal_lod");
+  }
+
+  if ((candidate.initial_normal_alt_counts >= mutect_args_.max_alt_alleles_in_normal_count.getValue() ||
+      candidate.normal_F >= mutect_args_.max_alt_allele_in_normal_fraction.getValue()) &&
+      candidate.initial_normal_alt_quality_sum > mutect_args_.max_alt_alleles_in_normal_qscore_sum.getValue()) {
+    candidate.AddRejectionReason("alt_allele_in_normal");
+  }
+
+  if ((candidate.tumor_forward_offsets_in_read_median <= mutect_args_.pir_median_threshold.getValue() &&
+       candidate.tumor_forward_offsets_in_read_mad <= mutect_args_.pir_mad_threshold.getValue()) ||
+      (candidate.tumor_reverse_offsets_in_read_median <= mutect_args_.pir_median_threshold.getValue() &&
+       candidate.tumor_reverse_offsets_in_read_mad <= mutect_args_.pir_mad_threshold.getValue())) {
+    candidate.AddRejectionReason("clustered_read_position");
+  }
+
+  // TODO: sync naming(is it positive or forward)
+  if ((candidate.power_to_detect_negative_strand_artifact >= mutect_args_.strand_artifact_power_threshold.getValue() &&
+      candidate.tumor_lodF_star_forward < mutect_args_.strand_artifact_lod_threshold.getValue()) ||
+      (candidate.power_to_detect_positive_strand_artifact >= mutect_args_.strand_artifact_power_threshold.getValue() &&
+      candidate.tumor_lodF_star_reverse < mutect_args_.strand_artifact_lod_threshold.getValue())) {
+    candidate.AddRejectionReason("strand_artifact");
+  }
+
+  if (candidate.total_reads > 0 &&
+      static_cast<float>(candidate.map_q0_reads)/candidate.total_reads >= mutect_args_.fraction_mapq0_threshold.getValue()) {
+    candidate.AddRejectionReason("poor_mapping_region_mapq0");
+  }
+
+  if (candidate.tumor_alt_max_map_q < mutect_args_.required_maximum_alt_allele_mapping_quality_score.getValue()) {
+    candidate.AddRejectionReason("poor_mapping_region_alternate_allele_mapq");
+  }
+
+  if (candidate.IsSeenInPanelOfNormals()) {
+    if (!candidate.cosmic_site) {
+      candidate.AddRejectionReason("seen_in_panel_of_normals");
+    }
+  }
+
 }
 
 int Worker::Input(void *data, bam1_t *b) {
