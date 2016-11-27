@@ -84,7 +84,7 @@ class CandidateMutation {
   double tumor_lodF_star_forward;
   double tumor_lodF_star_reverse;
 
-  double normalF;
+  double normal_F;
 
   double power_to_detect_positive_strand_artifact;
   double power_to_detect_negative_strand_artifact;

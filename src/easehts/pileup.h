@@ -47,6 +47,9 @@ namespace easehts {
  */
 class PileupElement {
  public:
+  explicit PileupElement()
+    : element_(nullptr) {}
+
   explicit PileupElement(const bam_pileup1_t* element)
     : element_(element) {
     qual_ = SAMBAMRecord::GetRawQuality(element_->b)[element_->qpos];
@@ -216,6 +219,10 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
     elements_.clear();
   }
 
+  const std::vector<PileupElement>& GetElements() const {
+    return elements_;
+  }
+
   /**
    * Returns a new ReadBackedPileup that is free of deletion spanning reads in
    * this pileup.  Note that this does not copy the data, so both
@@ -365,6 +372,12 @@ class PileupTraverse : public NonCopyable {
   ReadBackedRawPileup read_backed_pileup_;
 };
 
+/**
+ * The filters to filter PileupElement
+ */
+class PileupFilter : public NonCopyable {
+ public:
+};
 
 } // easehts
 } // ncic

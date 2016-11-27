@@ -28,6 +28,10 @@ class BaseUtils {
                "Non-standard bases were encountered in either the input reference or BAM file(s)");
     return kBaseIndexMap[base];
   }
+
+  static bool IsRegularBase(char base) {
+    return SimpleBaseToBaseIndex(base) != -1;
+  }
  private:
 
  public:

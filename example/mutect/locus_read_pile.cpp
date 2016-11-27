@@ -2,6 +2,7 @@
 
 #include <easehts/pileup.h>
 #include <easehts/base_utils.h>
+#include <easehts/diploid_genotype.h>
 
 #include <vector>
 #include <cmath>
@@ -124,7 +125,7 @@ double LocusReadPile::CalculateLogLikelihood(
     char base = element.GetBase();
     char qual = element.GetQual();
 
-    double e = std::pow(10, (qual / 10.0));
+    double e = std::pow(10, (qual / -10.0));
 
     if (base == ref) {
       ll += std::log10(f * e / 3 + (1 - f) * (1 - e));
@@ -136,6 +137,105 @@ double LocusReadPile::CalculateLogLikelihood(
   }
   return ll;
 }
+
+std::array<double, 3> LocusReadPile::ExtractRefHemHom(
+    const VariableAllelicRatioGenotypeLikelihoods& gl,
+    char ref_allele, char alt_allele) {
+  double ref = 0;
+  double het = 0;
+  double hom = 0;
+
+  for (const auto& gt : easehts::DiploidGenotype::kGenotypes) {
+    double likelihood = gl.GetLikelihood(gt);
+
+    if (gt.GetBase1() == ref_allele &&
+        gt.GetBase2() == ref_allele) {
+      ref = likelihood;
+    }
+
+    if ((gt.GetBase1() == ref_allele &&
+        gt.GetBase2() == alt_allele) ||
+        (gt.GetBase1() == alt_allele &&
+         gt.GetBase2() == ref_allele)) {
+      het = likelihood;
+    }
+
+    if (gt.GetBase1() == alt_allele &&
+        gt.GetBase2() == alt_allele) {
+      hom = likelihood;
+    }
+  }
+  return {ref, het, hom};
+}
+
+
+const easehts::DiploidGenotype& LocusReadPile::GetBestGenotype(
+    const VariableAllelicRatioGenotypeLikelihoods& likelihoods) const {
+  int idx = 0;
+  int best_idx = 0;
+  double best_likelihood = 0;
+  for (const auto& gt : easehts::DiploidGenotype::kGenotypes) {
+    double likelihood = likelihoods.GetLikelihood(gt);
+    if (likelihood >= best_likelihood) {
+      best_idx = idx;
+      best_likelihood = likelihood;
+    }
+    idx ++;
+  }
+  return easehts::DiploidGenotype::kGenotypes[best_idx];
+}
+
+double LocusReadPile::GetRefVsAlt(
+    const VariableAllelicRatioGenotypeLikelihoods& likelihoods,
+    char ref, char alt_allele) {
+  std::array<double, 3> ref_het_hom = ExtractRefHemHom(likelihoods, ref, alt_allele);
+
+  return ref_het_hom[0] - LogAddSafe(ref_het_hom[1], ref_het_hom[2]);
+}
+
+double LocusReadPile::LogAddSafe(double a, double b) {
+  double max_one = std::max(a, b);
+  double min_one = std::min(a, b);
+
+  return max_one + std::log(1 + std::pow(10, min_one - max_one));
+}
+
+double LocusReadPile::GetHetVsRef(
+    const VariableAllelicRatioGenotypeLikelihoods& likelihoods,
+    char ref, char alt_allele) {
+  std::array<double, 3> ref_het_hom = ExtractRefHemHom(likelihoods, ref, alt_allele);
+
+  return ref_het_hom[1] - ref_het_hom[0];
+}
+
+double LocusReadPile::GetAltVsRef(
+    const VariableAllelicRatioGenotypeLikelihoods& likelihoods,
+    char ref, char alt_allele) {
+  std::array<double, 3> ref_het_hom = ExtractRefHemHom(likelihoods, ref, alt_allele);
+
+  return LogAddSafe(ref_het_hom[1], ref_het_hom[2]) - ref_het_hom[0];
+}
+
+VariableAllelicRatioGenotypeLikelihoods LocusReadPile::CalculateLikelihoods(
+    const easehts::ReadBackedPileup& pileup) const {
+  return CalculateLikelihoods(0.5, pileup);
+}
+
+VariableAllelicRatioGenotypeLikelihoods LocusReadPile::CalculateLikelihoods(
+    double alpha, const easehts::ReadBackedPileup& pileup) const {
+
+  VariableAllelicRatioGenotypeLikelihoods likelihoods(ref_base_, alpha);
+  // we have to do this rather than pass in the ReadBackedPileup because that call
+  // attempts to make Fragments out of these, which doesn't work if you have
+  // a single pileup with multiple samples (as we do in the simulation)
+  int size = pileup.Size();
+  for (int i=0; i<size; i++) {
+    likelihoods.Add(pileup[i], false, false, min_quality_score_);
+  }
+  return likelihoods;
+}
+
+
 
 
 } // mutect

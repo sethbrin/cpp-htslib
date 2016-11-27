@@ -5,6 +5,9 @@
 #ifndef EASEHTSLIB_DIPLOID_SNP_GENOTYPE_LIKELIDOODS_H_
 #define EASEHTSLIB_DIPLOID_SNP_GENOTYPE_LIKELIDOODS_H_
 
+#include "base_utils.h"
+#include "diploid_genotype.h"
+#include "pileup.h"
 
 #include <cmath>
 #include <vector>
@@ -56,6 +59,7 @@ class DiploidSNPGenotypeLikelihoods {
     log10_PCR_error_3_ = std::log10(PCR_error_rate) -
       DiploidSNPGenotypeLikelihoods::kLog10_3;
     log10_1_minus_PCR_error_ = std::log10(1.0 - PCR_error_rate);
+    SetToZero();
   }
 
   const std::vector<double>& GetLikelihoods() const {
@@ -63,9 +67,10 @@ class DiploidSNPGenotypeLikelihoods {
   }
 
   void SetToZero() {
-    log10_likelihoods_.clear();
+    log10_likelihoods_ = std::vector<double>(DiploidGenotype::kGenotypes.size(), 0);
   }
 
+  
   static const double kDefaultPcrErrorRate;
 
  protected:
@@ -106,7 +111,26 @@ class DiploidSNPGenotypeLikelihoods {
   static const double kPloidyAdjustment;
   static const double kLog10_3;
 
- private:
+  static char QualToUse(const PileupElement& p,
+                        bool ignore_bad_bases,
+                        bool cap_base_quals_at_mapping_qual,
+                        int min_base_qual) {
+    if (ignore_bad_bases &&
+        !BaseUtils::IsRegularBase(p.GetBase())) {
+      return 0;
+    } else {
+      char qual = p.GetQual();
+      ERROR_COND(qual > 93, "We encountered an extremely high quality score");
+      if (cap_base_quals_at_mapping_qual) {
+        qual = std::min(255 & qual, p.GetMappingQuality());
+      }
+      if (qual < min_base_qual) {
+        qual = 0;
+      }
+
+      return qual;
+    }
+  }
 };
 
 } // easehts

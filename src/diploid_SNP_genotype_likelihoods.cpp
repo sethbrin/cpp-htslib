@@ -16,6 +16,12 @@ const double DiploidSNPGenotypeLikelihoods::kLog10_3 = std::log10(3.0);
 DiploidSNPGenotypeLikelihoods DiploidSNPGenotypeLikelihoods::CalculateGenotypeLikelihoods(
     char observed_base1, char quality_score1,
     char observed_base2, char quality_score2) {
+
+  // TODO test
+  ERROR("not test function");
+  std::vector<double> log10_four_base_likelihoods =
+    ComputeLog10Likelihoods(observed_base1, quality_score1,
+                            observed_base2, quality_score2);
   DiploidSNPGenotypeLikelihoods gl = *this;
   gl.SetToZero();
 
@@ -23,8 +29,17 @@ DiploidSNPGenotypeLikelihoods DiploidSNPGenotypeLikelihoods::CalculateGenotypeLi
   // which is -log10(ploidy) in log space
   for (const auto& g : DiploidGenotype::kGenotypes) {
     double p_base = 0.0;
-    //p_base += std::pow(10, )
+    p_base += std::pow(10,
+                       log10_four_base_likelihoods[BaseUtils::SimpleBaseToBaseIndex(g.GetBase1())]
+                       - kPloidyAdjustment);
+    p_base += std::pow(10,
+                       log10_four_base_likelihoods[BaseUtils::SimpleBaseToBaseIndex(g.GetBase2())]
+                       - kPloidyAdjustment);
+
+    gl.log10_likelihoods_[g.GetIndex()] += std::log10(p_base);
   }
+
+  return gl;
 }
 
 std::vector<double> DiploidSNPGenotypeLikelihoods::ComputeLog10Likelihoods(
@@ -52,15 +67,16 @@ std::vector<double> DiploidSNPGenotypeLikelihoods::ComputeLog10Likelihoods(
 
       likelihood += std::pow(10, log10_fragment_likelihood);
     }
-    log10_four_base_likelihoods[BaseUtils::kBaseIndexMap[true_base]] = std::log10(likelihood);
+    log10_four_base_likelihoods[BaseUtils::kBaseIndexMap[true_base]]
+      = std::log10(likelihood);
   }
+  return log10_four_base_likelihoods;
 }
 
 double DiploidSNPGenotypeLikelihoods::Log10PofObservingBaseGivenChromosome(
-    char observed_base,char chrom_base, char qual)
-{
-  double logP = 0;
+    char observed_base,char chrom_base, char qual) {
 
+  double logP = 0;
   if (observed_base == chrom_base) {
     double e = std::pow(10, (qual / -10.0));
     logP = std::log10(1.0 - e);

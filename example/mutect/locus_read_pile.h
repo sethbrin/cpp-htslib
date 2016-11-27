@@ -6,11 +6,13 @@
 #define MUTECT_LOCUS_READ_PILE_H_
 
 #include "quality_sums.h"
+#include "variable_allelic_ratio_genotype_likelyhoods.h"
 
 #include <easehts/noncopyable.h>
 #include <easehts/pileup.h>
 
 #include <vector>
+#include <array>
 
 namespace ncic {
 namespace mutect {
@@ -38,6 +40,7 @@ class LocusReadPile : public easehts::NonCopyable {
   int Size() const {
     return pileup_.Size();
   }
+
   double EstimateAlleleFraction(char ref, char alt) const;
 
   double CalculateAltVsRefLOD(const easehts::ReadBackedPileup& pileup,
@@ -57,6 +60,21 @@ class LocusReadPile : public easehts::NonCopyable {
     return lod_alt - lod_ref;
   }
 
+  const easehts::DiploidGenotype& GetBestGenotype(
+      const VariableAllelicRatioGenotypeLikelihoods& likelihoods) const;
+
+  double GetHetVsRef(const VariableAllelicRatioGenotypeLikelihoods& likelihoods,
+                     char ref, char alt_allele);
+
+  double GetAltVsRef(const VariableAllelicRatioGenotypeLikelihoods& likelihoods,
+                     char ref, char alt_allele);
+
+  VariableAllelicRatioGenotypeLikelihoods CalculateLikelihoods(
+      const easehts::ReadBackedPileup& pileup) const;
+
+  VariableAllelicRatioGenotypeLikelihoods CalculateLikelihoods(
+      double alpha, const easehts::ReadBackedPileup& pileup) const;
+
  public:
   const static int kGapEventProximity;
 
@@ -64,6 +82,14 @@ class LocusReadPile : public easehts::NonCopyable {
                                 char ref, char alt);
   static double CalculateLogLikelihood(const easehts::ReadBackedPileup& read_backed_pileup,
                                        char ref, char alt, double f);
+
+  static std::array<double, 3> ExtractRefHemHom(
+      const VariableAllelicRatioGenotypeLikelihoods& gl,
+      char ref_allele, char alt_allele);
+
+  static double GetRefVsAlt(
+      const VariableAllelicRatioGenotypeLikelihoods& likelihoods,
+      char ref, char alt_allele);
 
  public:
   easehts::ReadBackedPileup pileup_;
@@ -84,6 +110,27 @@ class LocusReadPile : public easehts::NonCopyable {
   bool track_base_quality_socres_;
   int deletions_count_;
   int insertion_count_;
+
+ private:
+  /**
+   * underflow safe version to compute log(10^a + 10^b)
+   *
+   *    e.g. compute c as in 10^c = 10^a + 10^b where a > b
+   *    which is c = log(10^a + 10^b)
+   *             c = log(10^a + 10^(b+a-a))
+   *             c = log(10^a + 10^a*10^(b-a))
+   *             c = log(10^a *(1 + 10^(b-a))
+   *             c = log(10^a) + log(1+10^(b-a))
+   *             c = a + log(1+10^(b-a))
+   *
+   * and in this case if b-a is a very small number, the last term is 0
+   * but we've done this without underflowing on the significant term
+   *
+   *
+   * e.g. a and b are two log-likelihoods to add
+   *
+   */
+  static double LogAddSafe(double a, double b);
 };
 
 } // mutect

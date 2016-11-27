@@ -98,6 +98,14 @@ class DiploidGenotype {
     return kGenotypes.size();
   }
 
+  char GetBase1() const {
+    return base1_;
+  }
+
+  char GetBase2() const {
+    return base2_;
+  }
+
   const static std::vector<DiploidGenotype> kGenotypes;
 
  private:

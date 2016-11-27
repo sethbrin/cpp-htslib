@@ -1,13 +1,17 @@
 #include "mutect.h"
 #include "locus_read_pile.h"
 #include "candidate_mutation.h"
+#include "variable_allelic_ratio_genotype_likelyhoods.h"
 
 #include <easehts/genome_loc.h>
+#include <easehts/pileup.h>
 
 #include <atomic>
 #include <cmath>
 #include <thread>
 #include <vector>
+#include <algorithm>
+#include <array>
 
 namespace ncic {
 namespace mutect {
@@ -235,6 +239,71 @@ void Worker::PrepareCondidate(
     // calculate lod of contaminant
     double contaminant_F = std::min(contaminat_alternate_fraction_,
                                     candidate.tumor_F);
+    VariableAllelicRatioGenotypeLikelihoods contaminant_likelihoods(up_ref, contaminant_F);
+
+    std::vector<easehts::PileupElement> pe_list = tumor_read_pile.final_pileup_.GetElements();
+    auto pileup_comparator_by_alt_ref = [alt_allele](const easehts::PileupElement& lhs,
+                                                     const easehts::PileupElement& rhs)->bool const {
+      if (lhs.GetBase() == rhs.GetBase()) {
+        // if the bases are the same, the higher quality score comes first
+        return lhs.GetQual() > rhs.GetQual();
+      } else {
+        if (lhs.GetBase() == alt_allele) {
+          return true;
+        } else if (rhs.GetBase() == alt_allele) {
+          return false;
+        } else {
+          return lhs.GetBase() < rhs.GetBase();
+        }
+      }
+    };
+    std::sort(pe_list.begin(), pe_list.end(),
+              pileup_comparator_by_alt_ref);
+
+    int reads_to_keep = static_cast<int>(pe_list.size() *
+                                         contaminat_alternate_fraction_);
+    for (const auto& pe : pe_list) {
+      char base = pe.GetBase();
+      if (base == alt_allele) {
+        // if we've retained all we need, then truen the remainder of alts to ref
+        if (reads_to_keep == 0) {
+          base = up_ref;
+        } else {
+          reads_to_keep--;
+        }
+      }
+
+      contaminant_likelihoods.Add(base, pe.GetQual());
+    }
+    std::array<double, 3> ref_het_hom =
+      LocusReadPile::ExtractRefHemHom(contaminant_likelihoods, up_ref, alt_allele);
+    candidate.contaminant_lod = ref_het_hom[1] - ref_het_hom[0];
+
+    VariableAllelicRatioGenotypeLikelihoods normal_gl =
+      normal_read_pile.CalculateLikelihoods(normal_read_pile.quality_score_filter_pileup_);
+    candidate.initial_normal_best_genotype = normal_read_pile.GetBestGenotype(normal_gl);
+    candidate.initial_normal_lod = LocusReadPile::GetRefVsAlt(normal_gl, up_ref, alt_allele);
+
+    candidate.normal_F = std::max(LocusReadPile::EstimateAlleleFraction(
+            normal_read_pile.quality_score_filter_pileup_, up_ref,
+            alt_allele), (double)mutect_args_.minimum_normal_allele_fraction.getValue());
+
+
+    const QualitySums& normal_qs = normal_read_pile.quality_sums_;
+    candidate.initial_normal_alt_quality_sum = normal_qs.GetQualitySum(alt_allele);
+    candidate.initial_normal_ref_quality_sum = normal_qs.GetQualitySum(up_ref);
+
+    candidate.normal_alt_quality_scores = normal_qs.GetBaseQualityScors(alt_allele);
+    candidate.normal_ref_quality_scores = normal_qs.GetBaseQualityScors(up_ref);
+
+    candidate.initial_normal_alt_counts = normal_qs.GetCounts(alt_allele);
+    candidate.initial_normal_ref_counts = normal_qs.GetCounts(up_ref);
+    candidate.initial_normal_read_depth = normal_read_pile.final_pileup_.Size();
+
+
+    // TODO: reduce the unnecessary compute pileup
+    LocusReadPile t2(SampleType::NORMAL, up_ref, 0,
+                     0, false, false, mutect_args_.enable_qscore_output.getValue());
   }
 }
 
