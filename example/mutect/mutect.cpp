@@ -2,22 +2,28 @@
 #include "locus_read_pile.h"
 #include "candidate_mutation.h"
 #include "variable_allelic_ratio_genotype_likelyhoods.h"
+#include "cga_alignment_utils.h"
+#include "sequence_utils.h"
 
 #include <easehts/genome_loc.h>
 #include <easehts/pileup.h>
 
+#include <algorithm>
 #include <atomic>
+#include <array>
 #include <cmath>
+#include <functional>
 #include <thread>
 #include <vector>
-#include <algorithm>
-#include <array>
 
 namespace ncic {
 namespace mutect {
 
 const std::string Worker::kValidBases = "ACGT";
 const int Worker::kMinQSumQScore = 13;
+const int Worker::kReferenceHalfWindowLength = 150;
+const int Worker::kMaxReadMismatchQualityScoreSum = 100;
+const char Worker::kMappedByMate = 'M';
 
 void Worker::Run(const easehts::GenomeLoc& interval) {
   //printf("run: %s\n", interval.ToString().c_str());
@@ -191,11 +197,18 @@ void Worker::PrepareCondidate(
     tumor_read_pile.quality_score_filter_pileup_.Size() +
     normal_read_pile.quality_score_filter_pileup_.Size();
 
+  bool force_output = mutect_args_.force_output.getValue();
+
   std::string sequence_context = reference_.CreateSequenceContext(location, 3);
+  int window_start = location.GetStart() - Worker::kReferenceHalfWindowLength;
+  int window_stop = location.GetStart() + Worker::kReferenceHalfWindowLength;
+  easehts::GenomeLoc window(location.GetContig(), location.GetContigId(),
+                            window_start, window_stop);
+  easehts::ReferenceSequence ref_bases = reference_.GetSequenceAt(window);
   // Test each of the possible alternate alleles
   for (const char alt_allele : kValidBases) {
     if (alt_allele == up_ref) continue;
-    if (!mutect_args_.force_output.getValue() &&
+    if (!force_output &&
         tumor_read_pile.quality_sums_.GetCounts(alt_allele) == 0) continue;
 
     CandidateMutation candidate(location, up_ref);
@@ -219,7 +232,7 @@ void Worker::PrepareCondidate(
     // candidate.dbsnp_site
     candidate.tumor_F = tumor_read_pile.EstimateAlleleFraction(up_ref, alt_allele);
 
-    if (!mutect_args_.force_output.getValue() &&
+    if (!force_output &&
         candidate.tumor_F < mutect_args_.tumor_f_pretest.getValue()) continue;
 
     candidate.initial_tumor_alt_counts = tumor_read_pile.quality_sums_.GetCounts(alt_allele);
@@ -293,8 +306,8 @@ void Worker::PrepareCondidate(
     candidate.initial_normal_alt_quality_sum = normal_qs.GetQualitySum(alt_allele);
     candidate.initial_normal_ref_quality_sum = normal_qs.GetQualitySum(up_ref);
 
-    candidate.normal_alt_quality_scores = normal_qs.GetBaseQualityScors(alt_allele);
-    candidate.normal_ref_quality_scores = normal_qs.GetBaseQualityScors(up_ref);
+    candidate.normal_alt_quality_scores = normal_qs.GetBaseQualityScores(alt_allele);
+    candidate.normal_ref_quality_scores = normal_qs.GetBaseQualityScores(up_ref);
 
     candidate.initial_normal_alt_counts = normal_qs.GetCounts(alt_allele);
     candidate.initial_normal_ref_counts = normal_qs.GetCounts(up_ref);
@@ -304,6 +317,110 @@ void Worker::PrepareCondidate(
     // TODO: reduce the unnecessary compute pileup
     LocusReadPile t2(SampleType::NORMAL, up_ref, 0,
                      0, false, false, mutect_args_.enable_qscore_output.getValue());
+    FilterReads(ref_bases, location, window,
+                tumor_read_pile.final_pileup_, true, &(t2.pileup_));
+    t2.InitPileups();
+
+    // if there are no reads remaining, abandon this theory
+    if (!force_output && t2.final_pileup_.Size() == 0) continue;
+
+    candidate.initial_tumor_alt_counts = t2.quality_sums_.GetCounts(alt_allele);
+    candidate.initial_tumor_ref_counts = t2.quality_sums_.GetCounts(up_ref);
+    candidate.initial_tumor_alt_quality_sum = t2.quality_sums_.GetQualitySum(alt_allele);
+    candidate.initial_tumor_ref_quality_sum = t2.quality_sums_.GetQualitySum(up_ref);
+
+    candidate.tumor_alt_quality_scores = t2.quality_sums_.GetBaseQualityScores(alt_allele);
+    candidate.tumor_ref_quality_scores = t2.quality_sums_.GetBaseQualityScores(up_ref);
+
+    VariableAllelicRatioGenotypeLikelihoods t2_gl = t2.CalculateLikelihoods(t2.final_pileup_);
+    candidate.initial_tumor_lod = t2.GetAltVsRef(t2_gl, up_ref, alt_allele);
+    candidate.initial_tumor_read_depth = t2.final_pileup_.Size();
+
+    candidate.tumor_F = t2.EstimateAlleleFraction(up_ref, alt_allele);
+    candidate.tumor_lodF_star = t2.CalculateAltVsRefLOD(alt_allele, candidate.tumor_F, 0);
+
+    // TODO: clean up use of forward/reverse vs positive/negative (prefer the latter)
+    easehts::ReadBackedPileup tmp_pileup;
+
+    easehts::ReadBackedPileup forward_pileup;
+    FilterReads(ref_bases, location, window,
+                tumor_read_pile.final_pileup_positive_strand_, true, &(tmp_pileup));
+    tmp_pileup.GetPileupByAndFilter(
+        &forward_pileup,
+        {easehts::PileupFilter::IsNotDeletion,
+        std::bind(easehts::PileupFilter::IsBaseQualityLarge, std::placeholders::_1, 0),
+        easehts::PileupFilter::IsMappingQualityLargerThanZero,
+        easehts::PileupFilter::IsPositiveStrand});
+    double f2_forward = LocusReadPile::EstimateAlleleFraction(forward_pileup, up_ref, alt_allele);
+    candidate.tumor_lodF_star_forward = t2.CalculateAltVsRefLOD(forward_pileup, alt_allele, f2_forward, 0.0);
+
+    tmp_pileup.Clear();
+    easehts::ReadBackedPileup reverse_pileup;
+    FilterReads(ref_bases, location, window,
+                tumor_read_pile.final_pileup_negative_strand_, true, &(tmp_pileup));
+    tmp_pileup.GetPileupByAndFilter(
+        &reverse_pileup,
+        {easehts::PileupFilter::IsNotDeletion,
+        std::bind(easehts::PileupFilter::IsBaseQualityLarge, std::placeholders::_1, 0),
+        easehts::PileupFilter::IsMappingQualityLargerThanZero,
+        easehts::PileupFilter::IsNegativeStrand});
+    double f2_reverse = LocusReadPile::EstimateAlleleFraction(reverse_pileup, up_ref, alt_allele);
+    candidate.tumor_lodF_star_forward = t2.CalculateAltVsRefLOD(reverse_pileup, alt_allele, f2_reverse, 0.0);
+
+
+    candidate.power_to_detect_positive_strand_artifact =
+      strand_artifact_power_calculator_.CachingPowerCalculation(reverse_pileup.Size(), candidate.tumor_F);
+    candidate.power_to_detect_negative_strand_artifact =
+      strand_artifact_power_calculator_.CachingPowerCalculation(forward_pileup.Size(), candidate.tumor_F);
+
+    candidate.strand_contingency_table =
+      SequenceUtils::GetStrandContingencyTable(forward_pileup, reverse_pileup, up_ref, alt_allele);
+
+
+    easehts::ReadBackedPileup mutant_pileup;
+    easehts::ReadBackedPileup reference_pileup;
+    for (int idx=0; idx<t2.final_pileup_.Size(); idx++) {
+      const easehts::PileupElement& p = t2.final_pileup_[idx];
+      bam1_t* read = p.GetRead();
+      int offset = p.GetOffset();
+      char cur_char = easehts::SAMBAMRecord::GetSequenceAt(read, offset);
+
+      if (cur_char == alt_allele) {
+        mutant_pileup.AddElement(p);
+      } else if (cur_char == up_ref) {
+        reference_pileup.AddElement(p);
+      }
+
+    }
+    // start with just the tumor pile
+    candidate.tumor_ref_max_map_q = reference_pileup.GetMaxMappingQuals();
+    candidate.tumor_alt_max_map_q = mutant_pileup.GetMaxMappingQuals();
+
+    // Set the maximum observed mapping quality score for the reference and
+    // alternate alleles
+    candidate.tumor_alt_forward_offsets_in_read =
+      SequenceUtils::GetForwardOffsetsInRead(mutant_pileup, location);
+    candidate.tumor_alt_reverse_offsets_in_read =
+      SequenceUtils::GetReverseOffsetsInRead(mutant_pileup, location);
+
+    if (candidate.tumor_alt_forward_offsets_in_read.size() > 0) {
+      std::vector<int> offsets = candidate.tumor_alt_forward_offsets_in_read;
+      double median = MutectStats::GetMedian<int>(offsets);
+      candidate.tumor_forward_offsets_in_read_median = median;
+      candidate.tumor_forward_offsets_in_read_mad =
+        MutectStats::CalculateMAD(offsets, median);
+    }
+
+    if (candidate.tumor_alt_reverse_offsets_in_read.size() > 0) {
+      std::vector<int> offsets = candidate.tumor_alt_reverse_offsets_in_read;
+      double median = MutectStats::GetMedian<int>(offsets);
+      candidate.tumor_reverse_offsets_in_read_median = median;
+      candidate.tumor_reverse_offsets_in_read_mad =
+        MutectStats::CalculateMAD(offsets, median);
+    }
+
+    // test to see if the candidate should be rejected
+
   }
 }
 
@@ -329,6 +446,36 @@ int Worker::Input(void *data, bam1_t *b) {
     }
   }
   return -1;
+}
+
+void Worker::FilterReads(
+    const easehts::ReferenceSequence& ref_bases,
+    const easehts::GenomeLoc& window,
+    const easehts::GenomeLoc& location,
+    const easehts::ReadBackedPileup pileup,
+    bool filter_mate_rescue_reads,
+    easehts::ReadBackedPileup* pPileup) {
+  int size = pileup.Size();
+  for (int idx = 0; idx < size; idx++) {
+    const easehts::PileupElement& p = pileup[idx];
+    bam1_t* read = p.GetRead();
+
+    int mismatch_quality_sum = CGAAlignmentUtils::MismatchesInRefWindow(
+        ref_bases, p, window, location, false, true);
+
+    // do we have too many mismatch overall?
+    if (mismatch_quality_sum > kMaxReadMismatchQualityScoreSum) continue;
+
+    // is this a heavily cliped read?
+    if (SequenceUtils::IsReadHeavilySoftClipped(
+            read, mutect_args_.heavily_clipped_read_fraction.getValue())) {
+      continue;
+    }
+
+    // was this read only placed because it's mate was uniquely placed? (supplied by BWA)
+    // TODO: current not support SAMTags
+    pPileup->AddElement(p);
+  }
 }
 
 void Mutect::Run() {

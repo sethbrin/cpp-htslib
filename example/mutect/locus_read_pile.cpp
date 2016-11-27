@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <cmath>
+#include <cfloat>
 
 namespace ncic {
 namespace mutect {
@@ -38,7 +39,7 @@ void LocusReadPile::AddPileupElement(const easehts::ReadBackedRawPileup& read_ba
 void LocusReadPile::InitPileups() {
   easehts::ReadBackedPileup no_overlap_pileup;
   pileup_.GetOverlappingFragmentFilteredPileup(&no_overlap_pileup,
-                                                       ref_base_, retain_overlap_mismatches_);
+                                               ref_base_, retain_overlap_mismatches_);
 
   no_overlap_pileup.GetPileupWithoutDeletions(&initial_pileup_);
   initial_pileup_.GetBaseFilteredPileup(min_quality_score_,
@@ -106,7 +107,7 @@ double LocusReadPile::EstimateAlleleFraction(char ref, char alt) const {
 double LocusReadPile::EstimateAlleleFraction(
     const easehts::ReadBackedPileup& read_backed_pileup,
     char ref, char alt) {
-  std::vector<int> counts = read_backed_pileup.GetBaseCounts();
+  std::array<int, 4> counts = read_backed_pileup.GetBaseCounts();
   int ref_count = counts[easehts::BaseUtils::SimpleBaseToBaseIndex(ref)];
   int alt_count = counts[easehts::BaseUtils::SimpleBaseToBaseIndex(alt)];
 
@@ -173,7 +174,7 @@ const easehts::DiploidGenotype& LocusReadPile::GetBestGenotype(
     const VariableAllelicRatioGenotypeLikelihoods& likelihoods) const {
   int idx = 0;
   int best_idx = 0;
-  double best_likelihood = 0;
+  double best_likelihood = -DBL_MAX;
   for (const auto& gt : easehts::DiploidGenotype::kGenotypes) {
     double likelihood = likelihoods.GetLikelihood(gt);
     if (likelihood >= best_likelihood) {

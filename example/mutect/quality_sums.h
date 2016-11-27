@@ -80,7 +80,7 @@ class QualitySums : public easehts::NonCopyable {
     ERROR(easehts::utils::StringFormatCStr("Unknown base:%c", base));
   }
 
-  const std::vector<int>& GetBaseQualityScors(char base) const {
+  const std::vector<int>& GetBaseQualityScores(char base) const {
     if (base == 'a' || base == 'A') return a_quality_sum_;
     if (base == 'c' || base == 'C') return c_quality_sum_;
     if (base == 'g' || base == 'G') return g_quality_sum_;

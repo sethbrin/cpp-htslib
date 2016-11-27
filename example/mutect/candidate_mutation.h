@@ -10,6 +10,7 @@
 #include <easehts/diploid_genotype.h>
 
 #include <vector>
+#include <array>
 
 namespace ncic {
 namespace mutect {
@@ -42,65 +43,65 @@ class CandidateMutation {
   easehts::VariantContext dbsnp_VC;
 
   bool covered = false;
-  double power;
-  double tumor_power;
-  double normal_power;
-  double normal_power_with_snp_prior;
-  double normal_power_no_snp_prior;
+  double power = 0;
+  double tumor_power = 0;
+  double normal_power = 0;
+  double normal_power_with_snp_prior = 0;
+  double normal_power_no_snp_prior = 0;
 
   char alt_allele = 'N';
   std::string tumor_sample_name = "TUMOR";
   std::string normal_sample_name = "NORMAL";
 
-  double contamination_fraction;
+  double contamination_fraction = 0;
 
-  double contaminant_lod;
+  double contaminant_lod = 0;
 
-  int tumor_q20_count;
-  int normal_q20_count;
+  int tumor_q20_count = 0;
+  int normal_q20_count = 0;
 
-  int total_reads;
-  int map_q0_reads;
-  int initial_tumor_ref_counts;
-  int initial_tumor_alt_counts;
-  int initial_tumor_ref_quality_sum;
-  int initial_tumor_alt_quality_sum;
-  int initial_tumor_non_ref_quality_sum;
-  int initial_tumor_read_depth;
-  int initial_normal_ref_counts;
-  int initial_normal_alt_counts;
-  int initial_normal_ref_quality_sum;
-  int initial_normal_alt_quality_sum;
-  int tumor_ref_max_map_q;
-  int tumor_alt_max_map_q;
-  int initial_normal_read_depth;
+  int total_reads = 0;
+  int map_q0_reads = 0;
+  int initial_tumor_ref_counts = 0;
+  int initial_tumor_alt_counts = 0;
+  int initial_tumor_ref_quality_sum = 0;
+  int initial_tumor_alt_quality_sum = 0;
+  int initial_tumor_non_ref_quality_sum = 0;
+  int initial_tumor_read_depth = 0;
+  int initial_normal_ref_counts = 0;
+  int initial_normal_alt_counts = 0;
+  int initial_normal_ref_quality_sum = 0;
+  int initial_normal_alt_quality_sum = 0;
+  int tumor_ref_max_map_q = 0;
+  int tumor_alt_max_map_q = 0;
+  int initial_normal_read_depth = 0;
   easehts::DiploidGenotype initial_normal_best_genotype;
 
-  double initial_tumor_lod;
-  double initial_normal_lod;
+  double initial_tumor_lod = 0;
+  double initial_normal_lod = 0;
 
-  double tumor_F;
-  double tumor_lodF_star;
-  double tumor_lodF_star_forward;
-  double tumor_lodF_star_reverse;
+  double tumor_F = 0;
+  double tumor_lodF_star = 0;
+  double tumor_lodF_star_forward = 0;
+  double tumor_lodF_star_reverse = 0;
 
-  double normal_F;
+  double normal_F = 0;
 
-  double power_to_detect_positive_strand_artifact;
-  double power_to_detect_negative_strand_artifact;
+  double power_to_detect_positive_strand_artifact = 0;
+  double power_to_detect_negative_strand_artifact = 0;
 
-  std::vector<int> strand_contingency_table;
+  std::array<int, 4> strand_contingency_table;
 
   std::vector<int> tumor_alt_forward_offsets_in_read;
   std::vector<int> tumor_alt_reverse_offsets_in_read;
 
-  double tumor_forward_offsets_in_read_median;
-  double tumor_forward_offsets_in_read_mad;
-  double normal_forward_offsets_in_read_median;
-  double normal_forward_offsets_in_read_mad;
+  double tumor_forward_offsets_in_read_median = 0;
+  double tumor_forward_offsets_in_read_mad = 0;
+  double tumor_reverse_offsets_in_read_median = 0;
+  double tumor_reverse_offsets_in_read_mad = 0;
 
-  int tumor_insertion_count;
-  int tumor_deletion_count;
+  int tumor_insertion_count = 0;
+  int tumor_deletion_count = 0;
 
   std::vector<int> tumor_ref_quality_scores;
   std::vector<int> tumor_alt_quality_scores;

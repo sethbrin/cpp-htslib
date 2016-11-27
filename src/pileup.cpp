@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <functional>
 
 namespace ncic {
 namespace easehts {
@@ -16,7 +17,7 @@ const char PileupElement::kDeletionQual = (char)16;
 const int ReadBackedPileup::kUninitializedCachedIntValue = -1;
 
 void ReadBackedPileup::GetPileupByFilter(ReadBackedPileup* pPileup,
-    std::function<bool (PileupElement element)> pred) {
+    PileupFilterFun pred) {
   assert(pPileup->Size() == 0);
   int size = elements_.size();
   for (int i = 0; i < size; i++) {
@@ -26,8 +27,26 @@ void ReadBackedPileup::GetPileupByFilter(ReadBackedPileup* pPileup,
   }
 }
 
+void ReadBackedPileup::GetPileupByAndFilter(ReadBackedPileup* pPileup,
+                                            std::vector<PileupFilterFun> filters) {
+  assert(pPileup->Size() == 0);
+  int size = elements_.size();
+  for (int i = 0; i < size; i++) {
+    bool flag = true;
+    for (const auto& filter : filters) {
+      if (!filter(elements_[i])) {
+        flag = false;
+        break;
+      }
+    }
+    if (flag) {
+      pPileup->AddElement(elements_[i]);
+    }
+  }
+}
+
 int ReadBackedPileup::GetPileupByFilterCount(
-    std::function<bool (PileupElement element)> pred) const {
+    PileupFilterFun pred) const {
   int cnt = 0;
   int size = elements_.size();
   for (int i = 0; i < size; i++) {
@@ -41,8 +60,8 @@ int ReadBackedPileup::GetPileupByFilterCount(
 // FIXME here just copy to pPileup and ignore number_of_deletions_
 void ReadBackedPileup::GetPileupWithoutDeletions(ReadBackedPileup* pPileup) {
 
-  auto pred = [](PileupElement element)->bool { return !element.IsDeletion();};
-  GetPileupByFilter(pPileup, pred);
+  //auto pred = [](PileupElement element)->bool { return !element.IsDeletion();};
+  GetPileupByFilter(pPileup, PileupFilter::IsNotDeletion);
 }
 
 /**
@@ -54,11 +73,12 @@ void ReadBackedPileup::GetBaseAndMappingFilteredPileup(
     int min_base_quality,
     int min_map_quality,
     ReadBackedPileup* pPileup) {
-  auto pred = [min_base_quality, min_map_quality](PileupElement element)->bool {
-    return SAMBAMRecord::GetMapQuality(element.GetRead()) >= min_map_quality &&
-      (element.IsDeletion() || element.GetQual() >= min_base_quality);
-  };
-  GetPileupByFilter(pPileup, pred);
+  //auto pred = [min_base_quality, min_map_quality](PileupElement element)->bool {
+    //return SAMBAMRecord::GetMapQuality(element.GetRead()) >= min_map_quality &&
+      //(element.IsDeletion() || element.GetQual() >= min_base_quality);
+  //};
+  GetPileupByFilter(pPileup,
+                    std::bind(PileupFilter::IsBaseAndMappingQualityLarge, std::placeholders::_1, min_base_quality, min_map_quality));
 }
 
 
@@ -83,24 +103,24 @@ void ReadBackedPileup::GetMappingFilteredPileup(int min_map_quality,
 
 void ReadBackedPileup::GetPileupWithoutMappingQualityZeroReads(
     ReadBackedPileup* pPileup) {
-  auto pred = [](PileupElement element)->bool {
-    return SAMBAMRecord::GetMapQuality(element.GetRead()) > 0;
-  };
-  GetPileupByFilter(pPileup, pred);
+  //auto pred = [](PileupElement element)->bool {
+    //return SAMBAMRecord::GetMapQuality(element.GetRead()) > 0;
+  //};
+  GetPileupByFilter(pPileup, PileupFilter::IsMappingQualityLargerThanZero);
 }
 
 void ReadBackedPileup::GetPositiveStrandPileup(ReadBackedPileup* pPileup) {
-  auto pred = [](PileupElement element)->bool {
-    return !SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
-  };
-  GetPileupByFilter(pPileup, pred);
+  //auto pred = [](PileupElement element)->bool {
+  //  return !SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
+  //};
+  GetPileupByFilter(pPileup, PileupFilter::IsPositiveStrand);
 }
 
 void ReadBackedPileup::GetNegativeStrandPileup(ReadBackedPileup* pPileup) {
-  auto pred = [](PileupElement element)->bool {
-    return SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
-  };
-  GetPileupByFilter(pPileup, pred);
+  //auto pred = [](PileupElement element)->bool {
+  //  return SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
+  //};
+  GetPileupByFilter(pPileup, PileupFilter::IsNegativeStrand);
 }
 
 void ReadBackedPileup::GetOverlappingFragmentFilteredPileup(ReadBackedPileup* pPileup,
@@ -175,8 +195,8 @@ int ReadBackedPileup::GetNumberOfDeletions() {
   return number_of_deletions_;
 }
 
-std::vector<int> ReadBackedPileup::GetBaseCounts() const {
-  std::vector<int> counts(4);
+std::array<int, 4> ReadBackedPileup::GetBaseCounts() const {
+  std::array<int, 4> counts{0,0,0,0};
 
   for (const auto& pile : elements_) {
     if (!pile.IsDeletion()) {
@@ -187,6 +207,17 @@ std::vector<int> ReadBackedPileup::GetBaseCounts() const {
     }
   }
   return counts;
+}
+
+int ReadBackedPileup::GetMaxMappingQuals() const {
+  int res = 0;
+  for (const auto& p : elements_) {
+    int qual = SAMBAMRecord::GetMapQuality(p.GetRead());
+    if (qual > res) {
+      res = qual;
+    }
+  }
+  return res;
 }
 
 } // easehts

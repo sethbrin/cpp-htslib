@@ -201,6 +201,20 @@ class SAMBAMRecord : public NonCopyable {
     return cached_sequence_;
   }
 
+  static std::string GetSequence(bam1_t* b) {
+    std::string res;
+    res.reserve(b->core.l_qseq);
+    const uint8_t* seq = GetRawSequence(b);
+    for (int i = 0; i < b->core.l_qseq; i++) {
+      res.push_back(utils::SAMUtils::GetSequenceBaseChar(seq, i));
+    }
+    return res;
+  }
+
+  static char GetSequenceAt(bam1_t* b, size_t idx) {
+    return utils::SAMUtils::GetSequenceBaseChar(bam_get_seq(b), idx);
+  }
+
   /*! @function
    @abstract  Get query quality
    @param  b  pointer to an alignment
@@ -210,8 +224,22 @@ class SAMBAMRecord : public NonCopyable {
     return bam_get_qual(raw_record_);
   }
 
+  std::string GetQuality() {
+    return SAMBAMRecord::GetQuality(raw_record_);
+  }
+
   static uint8_t* GetRawQuality(bam1_t* b) {
     return bam_get_qual(b);
+  }
+
+  static std::string GetQuality(bam1_t* b) {
+    std::string res;
+    uint8_t* qual = GetRawQuality(b);
+    for (int i = 0; i < b->core.l_qseq; i++) {
+      res.push_back(qual[i]);
+    }
+
+    return res;
   }
 
   /*! @function
@@ -299,6 +327,14 @@ class SAMBAMRecord : public NonCopyable {
   static int GetAlignmentStart(bam1_t* b) {
     return b->core.pos;
   }
+
+  int GetAlignmentEnd() {
+    return GetAlignmentEnd(raw_record_);
+  }
+  static int GetAlignmentEnd(bam1_t* b) {
+    return b->core.pos + b->core.l_qseq - 1;
+  }
+
 
   int GetMapQuality() {
     return raw_record_->core.qual;

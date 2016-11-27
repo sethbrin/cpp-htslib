@@ -2,7 +2,7 @@
 // Created by zp on 11/20/16.
 //
 
-#ifndef EASEHTSLIB_PILEUP_H_ 
+#ifndef EASEHTSLIB_PILEUP_H_
 #define EASEHTSLIB_PILEUP_H_
 
 #include "noncopyable.h"
@@ -10,6 +10,8 @@
 #include "sam_bam_record.h"
 
 #include <htslib/sam.h>
+
+#include <array>
 
 namespace ncic {
 namespace easehts {
@@ -181,6 +183,7 @@ class ReadBackedRawPileup : public AbstractReadBackedPileup {
   const bam_pileup1_t* elements_;
 };
 
+using PileupFilterFun = std::function<bool (PileupElement)>;
 /**
  * Use std::vector<PileupElement> to store
  */
@@ -258,12 +261,17 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
    * Get the reads with pred true
    */
   void GetPileupByFilter(ReadBackedPileup* pPileup,
-                         std::function<bool (PileupElement element)> pred);
+                         PileupFilterFun pred);
 
+  /**
+   * Get the reads which pass all the filters
+   */
+  void GetPileupByAndFilter(ReadBackedPileup* pPileup,
+                            std::vector<PileupFilterFun> filters);
   /**
    * Get the count which satisfy the pred
    */
-  int GetPileupByFilterCount(std::function<bool (PileupElement element)> pred) const;
+  int GetPileupByFilterCount(PileupFilterFun pred) const;
 
   void GetPositiveStrandPileup(ReadBackedPileup* pPileup);
 
@@ -285,7 +293,12 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
   /**
    * Get the base count
    */
-  std::vector<int> GetBaseCounts() const ;
+  std::array<int, 4> GetBaseCounts() const ;
+
+  /**
+   * Get the max mapping qualities
+   */
+  int GetMaxMappingQuals() const;
 
 
  private:
@@ -374,10 +387,56 @@ class PileupTraverse : public NonCopyable {
 
 /**
  * The filters to filter PileupElement
+ *
+ * when the PileupFilterFun returns true, the element remains,
+ * otherwise removed
  */
 class PileupFilter : public NonCopyable {
  public:
+  PileupFilter() = delete;
+  // ignore the element which is deletion
+  static bool IsNotDeletion(PileupElement element) {
+    return !element.IsDeletion();
+  }
+
+  /**
+   * when the quality >= min_base_quality and
+   * map quality >= min_map_quality returns true
+   */
+  static bool IsBaseAndMappingQualityLarge(
+      PileupElement element,
+      int min_base_quality, int min_map_quality) {
+    bool a =  SAMBAMRecord::GetMapQuality(element.GetRead()) >= min_map_quality;
+    bool b = (element.IsDeletion() || element.GetQual() >= min_base_quality);
+    return SAMBAMRecord::GetMapQuality(element.GetRead()) >= min_map_quality &&
+      (element.IsDeletion() || element.GetQual() >= min_base_quality);
+  }
+
+  static bool IsBaseQualityLarge(
+      PileupElement element, int min_base_quality) {
+    return (element.IsDeletion() || element.GetQual() >= min_base_quality);
+  }
+
+  static bool IsMappingQualityLarger(
+      PileupElement element,
+      int min_map_quality) {
+    return SAMBAMRecord::GetMapQuality(element.GetRead()) >= min_map_quality;
+  }
+
+  static bool IsMappingQualityLargerThanZero(PileupElement element) {
+    return SAMBAMRecord::GetMapQuality(element.GetRead()) > 0;
+  }
+
+
+  static bool IsPositiveStrand(PileupElement element) {
+    return !SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
+  }
+
+  static bool IsNegativeStrand(PileupElement element) {
+    return SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
+  }
 };
+
 
 } // easehts
 } // ncic

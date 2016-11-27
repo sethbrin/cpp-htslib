@@ -15,9 +15,10 @@
 #include <easehts/sam_bam_record.h>
 #include <easehts/reference_sequence.h>
 
+#include <atomic>
+#include <algorithm>
 #include <climits>
 #include <cfloat>
-#include <atomic>
 #include <list>
 #include <string>
 #include <vector>
@@ -86,6 +87,9 @@ class Worker : public easehts::NonCopyable {
 
   void Run(const easehts::GenomeLoc& interval);
 
+ public:
+  const static int kReferenceHalfWindowLength;
+
  private:
   static int Input(void *data, bam1_t *b);
   // the data
@@ -104,9 +108,18 @@ class Worker : public easehts::NonCopyable {
       const LocusReadPile& tumor_read_pile,
       const LocusReadPile& normal_read_pile);
 
+  void FilterReads(
+      const easehts::ReferenceSequence& ref_bases,
+      const easehts::GenomeLoc& window,
+      const easehts::GenomeLoc& location,
+      const easehts::ReadBackedPileup pileup,
+      bool filter_mate_rescue_reads,
+      easehts::ReadBackedPileup* pPileup);
 
   const static std::string kValidBases;
   const static int kMinQSumQScore;
+  const static int kMaxReadMismatchQualityScoreSum;
+  const static char kMappedByMate;
 
   MutectArgs& mutect_args_;
   easehts::IndexedFastaSequenceFile& reference_;
@@ -135,6 +148,38 @@ class Mutect : public easehts::NonCopyable {
   // XXX the order is very important!!!! you should not change it!!!
   MutectArgs mutect_args_;
   easehts::IndexedFastaSequenceFile reference_;
+};
+
+
+/**
+ * Collection of Statistical methods and tests used by mutect
+ */
+class MutectStats : public easehts::NonCopyable {
+ public:
+  template <typename T>
+  static double GetMedian(std::vector<T>& data) {
+    std::sort(data.begin(), data.end());
+    double result;
+    if (data.size() % 2 == 1) {
+      // If the number of entries in the lists is not even
+
+      // Get the middle value
+      // You must floor the result of the division to drop the remainder
+      result = data[data.size() / 2];
+    } else {
+      result = (data[data.size() / 2] + data[data.size()/2 - 1])/ 2.0;
+    }
+    return result;
+  }
+
+  static double CalculateMAD(const std::vector<int>& data, double median) {
+    std::vector<double> dev;
+    dev.reserve(data.size());
+    for (int d : data) {
+      dev.push_back(std::abs(d - median));
+    }
+    return GetMedian<double>(dev);
+  }
 };
 
 } // mutect
