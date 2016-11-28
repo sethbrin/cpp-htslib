@@ -5,7 +5,6 @@ project(easehtslib)
 
 set(CXX_FLAGS
         -g
-        -O0
         # -DVALGRIND
         # -DMUDUO_STD_STRING
         -DCHECK_PTHREAD_RETURN_VALUE

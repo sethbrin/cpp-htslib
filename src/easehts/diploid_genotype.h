@@ -49,6 +49,11 @@ class DiploidGenotype {
     return index_;
   }
 
+  std::string ToString() const {
+    std::string res;
+    return res + base1_ + base2_;
+  }
+
   /**
    * create a diploid genotype, given a character to make into a hom genotype
    *@param hom the character to turn into a hom genotype,

@@ -11,6 +11,7 @@
 
 #include <vector>
 #include <array>
+#include <cfloat>
 
 namespace ncic {
 namespace mutect {
@@ -23,7 +24,7 @@ class CandidateMutation {
   }
 
   // NOTE not implemented
-  int GetCountOfNormalsObservedIn() {
+  int GetCountOfNormalsObservedIn() const {
     return 0;
   }
 
@@ -44,6 +45,11 @@ class CandidateMutation {
 
   bool IsRejected() const {
     return rejected;
+  }
+
+  // TODO
+  int GetCountsOfNormalObservedIn() const {
+    return 0;
   }
 
   easehts::GenomeLoc location;
@@ -70,6 +76,7 @@ class CandidateMutation {
   double contamination_fraction = 0;
 
   double contaminant_lod = 0;
+  int score = 0;
 
   int tumor_q20_count = 0;
   int normal_q20_count = 0;
@@ -109,10 +116,10 @@ class CandidateMutation {
   std::vector<int> tumor_alt_forward_offsets_in_read;
   std::vector<int> tumor_alt_reverse_offsets_in_read;
 
-  double tumor_forward_offsets_in_read_median = 0;
-  double tumor_forward_offsets_in_read_mad = 0;
-  double tumor_reverse_offsets_in_read_median = 0;
-  double tumor_reverse_offsets_in_read_mad = 0;
+  double tumor_forward_offsets_in_read_median = kDoubleUnintialized;
+  double tumor_forward_offsets_in_read_mad = kDoubleUnintialized;
+  double tumor_reverse_offsets_in_read_median = kDoubleUnintialized;
+  double tumor_reverse_offsets_in_read_mad = kDoubleUnintialized;
 
   int tumor_insertion_count = 0;
   int tumor_deletion_count = 0;
@@ -125,7 +132,10 @@ class CandidateMutation {
   std::vector<std::string> rejection_reasons;
   bool rejected = false;
 
+  const static double kDoubleUnintialized;
+
 };
+
 
 } // mutect
 } // ncic

@@ -4,6 +4,8 @@
 
 #include "easehts/utils.h"
 
+#include <algorithm>
+
 namespace ncic {
 
 namespace easehts {

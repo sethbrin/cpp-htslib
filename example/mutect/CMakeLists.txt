@@ -3,6 +3,8 @@ set(MUTECT_FILES
   mutect.cpp
   locus_read_pile.cpp
   main.cpp
+  candidate_mutation.cpp
+  call_stats_generator.cpp
 )
 
 add_executable(mutect ${MUTECT_FILES})

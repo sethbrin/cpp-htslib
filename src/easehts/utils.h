@@ -11,6 +11,9 @@
 #include <stdio.h>
 #include <vector>
 #include <sys/stat.h>
+
+#include <sstream>
+#include <iterator>
 // store some common values
 
 #include <assert.h>
@@ -32,6 +35,24 @@ namespace easehts {
 namespace utils {
 
 void tokenize(const std::string &s, char c, std::vector<std::string> *res);
+
+template <typename T>
+std::string Join(const std::vector<T>& elements, const std::string& sep) {
+  switch (elements.size())
+  {
+    case 0:
+      return "";
+    case 1:
+      return "" + elements[0];
+    default:
+      std::ostringstream os;
+      std::copy(elements.begin(), elements.end()-1,
+                std::ostream_iterator<T>(os, sep.c_str()));
+      os << *elements.rbegin();
+      return os.str();
+  }
+
+}
 
 
 class SAMUtils {

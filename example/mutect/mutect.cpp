@@ -371,7 +371,7 @@ void Worker::PrepareCondidate(
         easehts::PileupFilter::IsMappingQualityLargerThanZero,
         easehts::PileupFilter::IsNegativeStrand});
     double f2_reverse = LocusReadPile::EstimateAlleleFraction(reverse_pileup, up_ref, alt_allele);
-    candidate.tumor_lodF_star_forward = t2.CalculateAltVsRefLOD(reverse_pileup, alt_allele, f2_reverse, 0.0);
+    candidate.tumor_lodF_star_reverse = t2.CalculateAltVsRefLOD(reverse_pileup, alt_allele, f2_reverse, 0.0);
 
 
     candidate.power_to_detect_positive_strand_artifact =
@@ -429,6 +429,7 @@ void Worker::PrepareCondidate(
     PerformRejection(candidate);
 
     if (mutect_args_.force_alleles.getValue()) {
+      call_stats_generator_.WriteCallStats(candidate);
     } else {
       message_by_tumor_lod[candidate.initial_normal_lod] = &candidate;
     }
@@ -457,6 +458,7 @@ void Worker::PrepareCondidate(
     // specified
     if (!m.IsRejected() ||
         (!mutect_args_.only_passing_calls.getValue())) {
+      call_stats_generator_.WriteCallStats(m);
     }
   }
 
@@ -592,6 +594,7 @@ void Mutect::Run() {
     easehts::IntervalUtils::IntervalFileToList(parser,
                                                mutect_args_.interval_file.getValue());
 
+  call_stats_generator_.WriteHeader();
   int thread_cnt = mutect_args_.thread_cnt.getValue();
 
   std::atomic<int> interval_index(0);
@@ -599,7 +602,7 @@ void Mutect::Run() {
   workers.reserve(thread_cnt);
   for (int i = 0; i < thread_cnt; i++) {
     workers.emplace_back([this, &intervals, &interval_index]() {
-      Worker worker(this->mutect_args_, this->reference_);
+      Worker worker(this->mutect_args_, this->reference_, this->call_stats_generator_);
       while (interval_index < intervals.size()) {
         size_t index = interval_index++;
         if (index >= intervals.size()) break;
