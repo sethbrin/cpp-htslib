@@ -32,7 +32,7 @@ class LocusReadPile : public easehts::NonCopyable {
     : LocusReadPile(sample_type, ref_base, min_quality_score,
                     min_qsum_quality_score, false, false, track_base_quality_socres) {}
 
-  void AddPileupElement(const easehts::ReadBackedRawPileup& read_backed_pileup);
+  void AddPileupElement(const easehts::ReadBackedPileup& read_backed_pileup);
 
   // init the pileups
   void InitPileups();

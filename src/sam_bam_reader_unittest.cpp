@@ -30,7 +30,8 @@ TEST(Constructor1, SAMBAMTextReader) {
   }
 
   EXPECT_EQ(count, 10);
-
+  EXPECT_FALSE(reader.HasNext(&record));
+  EXPECT_FALSE(reader.HasNext(&record));
 }
 
 TEST(MoveConstructor, SAMBAMTextReader) {

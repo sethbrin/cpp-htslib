@@ -30,7 +30,7 @@ LocusReadPile::LocusReadPile(SampleType sample_type, char ref_base, int min_qual
 }
 
 
-void LocusReadPile::AddPileupElement(const easehts::ReadBackedRawPileup& read_backed_pileup) {
+void LocusReadPile::AddPileupElement(const easehts::ReadBackedPileup& read_backed_pileup) {
   for (size_t i=0; i < read_backed_pileup.Size(); i++) {
     pileup_.AddElement(read_backed_pileup[i]);
   }

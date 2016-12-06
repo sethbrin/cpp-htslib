@@ -10,6 +10,8 @@
 
 #include <htslib/sam.h>
 #include <string>
+#include <climits>
+#include <cmath>
 
 namespace ncic {
 
@@ -20,6 +22,10 @@ class CigarElement {
   CigarElement(char op, int length)
     : operator_(op),
     length_(length) {}
+
+  CigarElement()
+  : operator_('D'),
+  length_(0) {}
 
   char GetOperator() const {
     return operator_;
@@ -46,8 +52,8 @@ class CigarElement {
     MISMATCH = 'X'
   };
  private:
-  const char operator_;
-  const int length_;
+  char operator_;
+  int length_;
 };
 
 enum SAMFlag {
@@ -190,6 +196,14 @@ class SAMBAMRecord : public NonCopyable {
     return b->core.l_qseq;
   }
 
+  uint32_t GetInferredInsertSize() {
+    return raw_record_->core.isize;
+  }
+
+  static uint32_t GetInferredInsertSize(bam1_t* b) {
+    return b->core.isize;
+  }
+
   std::string GetSequence() {
     if (cached_sequence_.empty()) {
       cached_sequence_.reserve(raw_record_->core.l_qseq);
@@ -278,6 +292,20 @@ class SAMBAMRecord : public NonCopyable {
     return (b->core.flag & SAMFlag::READ_UNMAPPED) != 0;
   }
 
+  bool GetReadPairedFlag() {
+    return (raw_record_->core.flag & SAMFlag::READ_PAIRED) != 0;
+  }
+  static bool GetReadPairedFlag(bam1_t* b) {
+    return (b->core.flag & SAMFlag::READ_PAIRED) != 0;
+  }
+
+  bool GetMateUnmappedFlag() {
+    return (raw_record_->core.flag & SAMFlag::MATE_UNMAPPED) != 0;
+  }
+  static bool GetMateUnmappedFlag(bam1_t* b) {
+    return (b->core.flag & SAMFlag::MATE_UNMAPPED) != 0;
+  }
+
   /**
    * the alignment is not primary (a read having split hits may have multiple primary alignment records).
    */
@@ -296,6 +324,13 @@ class SAMBAMRecord : public NonCopyable {
   }
   static bool GetReadNegativeStrandFlag(bam1_t* b) {
     return (b->core.flag & SAMFlag::READ_REVERSE_STRAND) != 0;
+  }
+
+  bool GetMateNegativeStrandFlag() {
+    return (raw_record_->core.flag & SAMFlag::MATE_REVERSE_STRAND) != 0;
+  }
+  static bool GetMateNegativeStrandFlag(bam1_t* b) {
+    return (b->core.flag & SAMFlag::MATE_REVERSE_STRAND) != 0;
   }
 
   /**
@@ -328,11 +363,33 @@ class SAMBAMRecord : public NonCopyable {
     return b->core.pos;
   }
 
+  int GetMateAlignmentStart() {
+    return raw_record_->core.mpos;
+  }
+  static int GetMateAlignmentStart(bam1_t* b) {
+    return b->core.mpos;
+  }
+
   int GetAlignmentEnd() {
     return GetAlignmentEnd(raw_record_);
   }
   static int GetAlignmentEnd(bam1_t* b) {
-    return b->core.pos + b->core.l_qseq - 1;
+    std::vector<CigarElement> cigars = ParseRawCigar(b);
+    int len = b->core.pos - 1;
+    for (auto& cigar : cigars) {
+      switch(cigar.GetOperator()) {
+        case CigarElement::MATCH:
+        case CigarElement::DELETION:
+        case CigarElement::SKIPPED_REGION:
+        case CigarElement::EQUAL:
+        case CigarElement::MISMATCH:
+          len += cigar.GetLength();
+          break;
+        default:
+          break;
+      }
+    }
+    return len;
   }
 
 
@@ -382,6 +439,102 @@ class SAMBAMRecord : public NonCopyable {
     }
     return res;
   }
+
+  static std::string GetCigarString(bam1_t* b) {
+    std::vector<CigarElement> elements = ParseRawCigar(b);
+    std::string res;
+    for (const CigarElement& element : elements) {
+      res += element.ToString();
+    }
+    return res;
+  }
+
+  /**
+   * Can the adaptor sequence of read be reliably removed from the
+   * read base on the alignment of read and its mate?
+   *
+   * @param read the read to check
+   * @return true if it can, false otherwise
+   */
+  static bool HasWellDefinedFragmentSize(bam1_t* read) {
+    if (GetInferredInsertSize(read) == 0) return false;
+    if (!GetReadPairedFlag(read)) return false;
+    if (GetReadUnmappedFlag(read) || GetMateUnmappedFlag(read)) return false;
+    if (GetReadNegativeStrandFlag(read) == GetMateNegativeStrandFlag(read)) return false;
+    if (GetReadNegativeStrandFlag(read)) {
+      return GetAlignmentStart(read) > GetMateAlignmentStart(read);
+    } else {
+      return GetAlignmentStart(read) <=
+        GetMateAlignmentStart(read) + GetInferredInsertSize(read);
+    }
+  }
+
+   /**
+    * Finds the adaptor boundary around the read and returns the first base inside the adaptor that is closest to
+    * the read boundary. If the read is in the positive strand, this is the first base after the end of the
+    * fragment (Picard calls it 'insert'), if the read is in the negative strand, this is the first base before the
+    * beginning of the fragment.
+    *
+    * There are two cases we need to treat here:
+    *
+    * 1) Our read is in the reverse strand :
+    *
+    *     <----------------------| *
+    *   |--------------------->
+    *
+    *   in these cases, the adaptor boundary is at the mate start (minus one)
+    *
+    * 2) Our read is in the forward strand :
+    *
+    *   |---------------------->   *
+    *     <----------------------|
+    *
+    *   in these cases the adaptor boundary is at the start of the read plus the inferred insert size (plus one)
+    *
+    * @param read the read being tested for the adaptor boundary
+    * @return the reference coordinate for the adaptor boundary (effectively the first base IN the adaptor, closest to the read.
+    * CANNOT_COMPUTE_ADAPTOR_BOUNDARY if the read is unmapped or the mate is mapped to another contig.
+    */
+  static int GetAdaptorBoundary(bam1_t* read) {
+    if (!HasWellDefinedFragmentSize(read)) {
+      return CANNOT_COMPUTE_ADAPTOR_BOUNDARY;
+    } else if(GetReadNegativeStrandFlag(read)) {
+      return GetMateAlignmentStart(read) - 1;
+    } else {
+      return GetAlignmentStart(read) +
+        std::abs(GetInferredInsertSize(read)) + 1;
+    }
+  }
+
+  /**
+   * is this base inside the adaptor of the read?
+   *
+   * There are two cases to treat here:
+   *
+   * 1) Read is in the negative strand => Adaptor boundary is on the left tail
+   * 2) Read is in the positive strand => Adaptor boundary is on the right tail
+   *
+   * Note: We return false to all reads that are UNMAPPED or have an weird big insert size (probably due to mismapping or bigger event)
+   *
+   * @param read the read to test
+   * @param basePos base position in REFERENCE coordinates (not read coordinates)
+   * @return whether or not the base is in the adaptor
+   */
+  static bool IsBaseInsideAdaptor(bam1_t* read, int base_pos) {
+    const int adaptor_boundary = GetAdaptorBoundary(read);
+    if (adaptor_boundary == CANNOT_COMPUTE_ADAPTOR_BOUNDARY ||
+        GetInferredInsertSize(read) > DEFAULT_ADAPTOR_SIZE) {
+      return false;
+    }
+    return GetReadNegativeStrandFlag(read) ?
+      base_pos <= adaptor_boundary : base_pos >= adaptor_boundary;
+  }
+
+ public:
+  enum {
+    CANNOT_COMPUTE_ADAPTOR_BOUNDARY = INT_MIN,
+    DEFAULT_ADAPTOR_SIZE = 100
+  };
 
  private:
   bam1_t* raw_record_;

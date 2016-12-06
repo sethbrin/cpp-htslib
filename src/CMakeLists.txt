@@ -10,6 +10,7 @@ set(SOURCE_FILES
     base_utils.cpp
     diploid_SNP_genotype_likelihoods.cpp
     diploid_genotype.cpp
+    alignment_state_machine.cpp
 )
 
 add_library(easehtslib ${SOURCE_FILES})
@@ -23,4 +24,5 @@ if (test)
     create_test(reference_sequence_unittest)
     create_test(pileup_unittest)
     create_test(sam_bam_record_unittest)
+    create_test(alignment_state_machine_unittest)
 endif()

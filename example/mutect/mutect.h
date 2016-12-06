@@ -34,7 +34,7 @@ class Worker : public easehts::NonCopyable {
          easehts::IndexedFastaSequenceFile& reference,
          CallStatsGenerator& call_stats_generator)
     : mutect_args_(mutect_args),
-    reference_(reference),
+    reference_(mutect_args_.reference.getValue()),
     call_stats_generator_(call_stats_generator) {
 
     // init tumor readers
@@ -103,8 +103,8 @@ class Worker : public easehts::NonCopyable {
 
   void PrepareResult(const easehts::GenomeLoc& location,
                      const uint64_t min_contig_pos,
-                     const std::vector<easehts::PileupTraverse>& tumor_traverses,
-                     const std::vector<easehts::PileupTraverse>& normal_traverses);
+                     const std::vector<easehts::GATKPileupTraverse>& tumor_traverses,
+                     const std::vector<easehts::GATKPileupTraverse>& normal_traverses);
 
   void PrepareCondidate(
       const char up_ref,
@@ -128,7 +128,7 @@ class Worker : public easehts::NonCopyable {
   const static char kMappedByMate;
 
   MutectArgs& mutect_args_;
-  easehts::IndexedFastaSequenceFile& reference_;
+  easehts::IndexedFastaSequenceFile reference_;
   CallStatsGenerator& call_stats_generator_;
 
   std::vector<easehts::BAMIndexReader> tumor_readers_;

@@ -96,6 +96,43 @@ class GenomeLoc {
     return GenomeLoc(GetContig(), GetContigId(), GetStop(), GetStop());
   }
 
+  bool DisjointP(const GenomeLoc& that) const {
+    return contig_id_ != that.contig_id_ ||
+      start_ > that.stop_ ||
+      that.start_ > stop_;
+  }
+
+  bool DisContinuousP(const GenomeLoc& that) const {
+    return contig_id_ != that.contig_id_ ||
+      (start_ - 1) > that.stop_ ||
+      (that.start_ - 1) > stop_;
+  }
+
+  bool OverlapsP(const GenomeLoc& that) const {
+    return !DisjointP(that);
+  }
+
+  bool ContiguousP(const GenomeLoc& that) const {
+    return !DisContinuousP(that);
+  }
+
+  GenomeLoc Merge(const GenomeLoc& that) const {
+    if (GenomeLoc::IsUnmapped(*this) ||
+        GenomeLoc::IsUnmapped(that)) {
+      ERROR_COND(!GenomeLoc::IsUnmapped(*this) ||
+                 !GenomeLoc::IsUnmapped(that),
+                 utils::StringFormatCStr("Trid to merge a mapped and an unmapped genome loc"));
+      return kUnmapped;
+    }
+
+    ERROR_COND(!ContiguousP(that),
+               utils::StringFormatCStr("The two genome loc's need to be contiguous"));
+
+    return GenomeLoc(GetContig(), contig_id_,
+                     std::min(GetStart(), that.GetStart()),
+                     std::max(GetStop(), that.GetStop()));
+  }
+
   std::string ToString() const {
     if (GenomeLoc::IsUnmapped(*this)) return "unmapped";
     if (ThroughEndOfContigP() && AtBeginningContigP()) {
@@ -201,8 +238,14 @@ class GenomeLocParser : public NonCopyable {
 
 class IntervalUtils : public NonCopyable {
  public:
+  static std::vector<GenomeLoc> LoadIntervals(const GenomeLocParser& gl_parser,
+                                             const std::string& filename);
+
   static std::vector<GenomeLoc> IntervalFileToList(const GenomeLocParser& gl_parser,
                                                    const std::string& filename);
+
+  static std::vector<GenomeLoc> MergeIntervals(const std::vector<GenomeLoc>& genome_locs);
+
   /**
    * read interval header from filename
    * @param filename the filename contains header, such as sam/interval

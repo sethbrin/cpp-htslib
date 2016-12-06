@@ -5,13 +5,18 @@
 #ifndef EASEHTSLIB_PILEUP_H_
 #define EASEHTSLIB_PILEUP_H_
 
+#include "alignment_state_machine.h"
 #include "noncopyable.h"
 #include "utils.h"
 #include "sam_bam_record.h"
+#include "genome_loc.h"
+#include "sam_bam_reader.h"
 
 #include <htslib/sam.h>
 
 #include <array>
+#include <list>
+#include <memory>
 
 namespace ncic {
 namespace easehts {
@@ -84,6 +89,10 @@ class PileupElement {
 
   int GetOffset() const {
     return element_->qpos;
+  }
+
+  bam_pileup1_t* GetRawPileupElement() const {
+    return const_cast<bam_pileup1_t*>(element_);
   }
 
  public:
@@ -318,6 +327,8 @@ class ReadBackedPileup : public AbstractReadBackedPileup {
 using  TraverseCallback = bam_plp_auto_f;
 
 /*
+ * A warper of samtools pileup
+ *
  * @example
  *
  * while (traverse.HasNext()) {
@@ -384,6 +395,145 @@ class PileupTraverse : public NonCopyable {
   bam_plp_t iter_; // inner Pileup iterator structure
   ReadBackedRawPileup read_backed_pileup_;
 };
+
+/**
+ * A implementation of GATK Pileup
+ */
+class GATKPileupTraverse : public NonCopyable {
+ public:
+  GATKPileupTraverse(BAMIndexReader* reader,
+                     const GenomeLoc& traverse_interval)
+  : interval_(traverse_interval),
+    reader_(reader) {
+    reader_->SetRegion(interval_.GetContigId(), interval_.GetStart(),
+                      interval_.GetStop());
+
+    read_backed_pileup_.reset(new ReadBackedPileup());
+    cur_coordianate_ = interval_.GetStart();
+    if (!GetNextFilteredRead()) {
+      is_eof_ = true;
+      cur_tracker_ = nullptr;
+    } else {
+      cur_tracker_ = new PileupTracker(read_);
+    }
+
+  }
+
+  GATKPileupTraverse(GATKPileupTraverse&& rhs) {
+    read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
+    reader_ = rhs.reader_;
+    swap(buffer_list_, rhs.buffer_list_);
+  }
+
+  GATKPileupTraverse& operator=(GATKPileupTraverse&& rhs) {
+    if (this != &rhs) return *this;
+
+    read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
+    reader_ = rhs.reader_;
+    swap(buffer_list_, rhs.buffer_list_);
+    return *this;
+  }
+
+
+  bool HasNext();
+  ReadBackedPileup& Next();
+  // the same as Next
+  const ReadBackedPileup& CurrentPileup() const {
+    return *read_backed_pileup_;
+  }
+
+  void GetNext() {
+    HasNext();
+  }
+
+  ~GATKPileupTraverse() {
+    int idx = 0;
+    while (!buffer_list_.empty()) {
+      // free
+      bam_destroy1(buffer_list_.front()->read);
+      delete buffer_list_.front();
+      buffer_list_.pop_front();
+    }
+    FreeReadBackedPileup();
+  }
+
+
+
+ private:
+  void FreeReadBackedPileup() const {
+    for (int idx = 0; read_backed_pileup_ &&
+         idx < read_backed_pileup_->Size(); idx++) {
+      ::free((*read_backed_pileup_)[idx].GetRawPileupElement());
+    }
+  }
+
+  bool GetNextFilteredRead() {
+    easehts::SAMBAMRecord record;
+    while (reader_->HasNext(&record)) {
+      if (record.GetReadUnmappedFlag() ||
+          record.GetAlignmentStart() == SAMBAMRecord::NO_ALIGNMENT_START ||
+          record.GetNotPrimaryAlignmentFlag() ||
+          record.GetDuplicateReadFlag() ||
+          record.GetReadFailsVendorQualityCheckFlag()) {
+        // read next
+      } else {
+        // FIXME bug design, should set record to null, otherwise will delete the
+        // memory
+        read_ = record.GetRawRecord();
+        record.SetRawRecord(nullptr);
+        return true;
+      }
+    }
+
+    is_eof_ = true;
+    return false;
+  }
+
+  class PileupTracker {
+   public:
+    int start;
+    int end;
+    AlignmentStateMachine state_machine;
+    bam1_t* read;
+
+    PileupTracker(bam1_t* read)
+    : state_machine(read) {
+      this->read = read;
+      start = SAMBAMRecord::GetAlignmentStart(read);
+      end = SAMBAMRecord::GetAlignmentEnd(read);
+    }
+
+    bool StepForwardOnGenome() {
+      if (state_machine.StepForwardOnGenome() == 0) {
+        return false;
+      } else {
+        return true;
+      }
+    }
+
+    bool IsBeforeEnd(int cur) {
+      return cur <= end;
+    }
+
+    bool IsAfterStart(int cur) {
+      return cur >= start;
+    }
+
+  };
+
+  GenomeLoc interval_;
+  BAMIndexReader* reader_;
+  bam1_t* read_;
+
+  // traverse variables
+  int cur_coordianate_;
+  std::list<PileupTracker*> buffer_list_;
+  std::unique_ptr<ReadBackedPileup> read_backed_pileup_;
+  PileupTracker* cur_tracker_;
+  bool is_eof_ = false;
+
+};
+
 
 /**
  * The filters to filter PileupElement

@@ -120,7 +120,7 @@ class DiploidSNPGenotypeLikelihoods {
       return 0;
     } else {
       char qual = p.GetQual();
-      ERROR_COND(qual > 93, "We encountered an extremely high quality score");
+      WARN_COND(qual > 93, "We encountered an extremely high quality score");
       if (cap_base_quals_at_mapping_qual) {
         qual = std::min(255 & qual, p.GetMappingQuality());
       }

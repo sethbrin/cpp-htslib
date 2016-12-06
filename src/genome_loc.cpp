@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
+
 #include <htslib/kseq.h>
 #include <htslib/hts.h>
 #include <htslib/kstring.h>
@@ -124,6 +126,46 @@ err_ret:
 
   ::hts_close(fp);
   return genome_locs;
+}
+
+
+std::vector<GenomeLoc> IntervalUtils::LoadIntervals(
+    const GenomeLocParser& gl_parser,
+    const std::string& filename) {
+  std::vector<GenomeLoc> genome_locs =
+    IntervalUtils::IntervalFileToList(gl_parser, filename);
+
+  // Sort and merge inteval
+  std::sort(genome_locs.begin(), genome_locs.end());
+  return IntervalUtils::MergeIntervals(genome_locs);
+}
+
+std::vector<GenomeLoc> IntervalUtils::MergeIntervals(
+    const std::vector<GenomeLoc>& genome_locs) {
+  if (genome_locs.size() <= 1) return genome_locs;
+
+  std::vector<GenomeLoc> merged;
+  int idx = 0;
+  int prev = 0;
+  GenomeLoc prev_loc = genome_locs[prev];
+  bool flag = false;
+  while (idx < genome_locs.size()) {
+    int cur = ++idx;
+    if (prev_loc.OverlapsP(genome_locs[cur]) ||
+        prev_loc.ContiguousP(genome_locs[cur])) {
+      prev_loc = prev_loc.Merge(genome_locs[cur]);
+    } else {
+      merged.push_back(prev_loc);
+      prev = cur;
+      if (prev >= genome_locs.size()) {
+        flag = true;
+        break;
+      }
+      prev_loc = genome_locs[prev];
+    }
+  }
+  if (!flag) merged.push_back(prev_loc);
+  return merged;
 }
 
 

@@ -189,6 +189,7 @@ class CallStatsGenerator : public easehts::NonCopyable {
     for (const auto& value : headers_) {
       msg.push_back(d.at(value));
     }
+    fprintf(stderr, "*****position:%s\n", d.at("position").c_str());
 
     return easehts::utils::Join(msg, kTab);
   }

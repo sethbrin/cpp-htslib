@@ -31,35 +31,28 @@ const char Worker::kMappedByMate = 'M';
 void Worker::Run(const easehts::GenomeLoc& interval) {
   //printf("run: %s\n", interval.ToString().c_str());
 
-  std::vector<easehts::PileupTraverse> normal_traverses;
-  std::vector<easehts::PileupTraverse> tumor_traverses;
+  std::vector<easehts::GATKPileupTraverse> normal_traverses;
+  std::vector<easehts::GATKPileupTraverse> tumor_traverses;
 
   int overlap_size = mutect_args_.overlap_size.getValue();
   for (easehts::BAMIndexReader& reader : normal_readers_) {
-    InputData input_data;
-    reader.SetRegion(interval.GetContigId(),
-                     interval.GetStart() - overlap_size,
-                     interval.GetStop() + overlap_size);
-    input_data.reader = &reader;
-    normal_traverses.emplace_back(&Worker::Input, &input_data);
+    normal_traverses.emplace_back(&reader, interval);
   }
 
   for (easehts::BAMIndexReader& reader : tumor_readers_) {
-    InputData input_data;
-    reader.SetRegion(interval.GetContigId(),
-                     interval.GetStart() - overlap_size,
-                     interval.GetStop() + overlap_size);
-    input_data.reader = &reader;
-    tumor_traverses.emplace_back(&Worker::Input, &input_data);
+    tumor_traverses.emplace_back(&reader, interval);
   }
 
   // the min postion of current site
   uint64_t cur_site = (uint64_t)-1;
   while (true) {
     uint64_t min_contig_pos = (uint64_t)-1;
+    bool is_finished = true;
     for(auto& traverse : normal_traverses) {
       if (traverse.CurrentPileup().GetContigPos() == cur_site) {
-        traverse.GetNext();
+        if (traverse.HasNext()) {
+          is_finished = false;
+        }
       }
       if (traverse.CurrentPileup().GetContigPos() < min_contig_pos) {
         min_contig_pos = traverse.CurrentPileup().GetContigPos();
@@ -68,14 +61,16 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
 
     for(auto& traverse : tumor_traverses) {
       if (traverse.CurrentPileup().GetContigPos() == cur_site) {
-        traverse.GetNext();
+        if (traverse.HasNext()) {
+          is_finished = false;
+        }
       }
       if (traverse.CurrentPileup().GetContigPos() < min_contig_pos) {
         min_contig_pos = traverse.CurrentPileup().GetContigPos();
       }
     }
 
-    if (min_contig_pos == (uint64_t)-1) {
+    if (is_finished || min_contig_pos == (uint64_t)-1) {
       break;
     }
     cur_site = min_contig_pos;
@@ -90,7 +85,7 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
     if (cur_pos < interval.GetStart()) {
       continue;
     }
-    if (cur_pos > interval.GetStop()) {
+    if (cur_pos >= interval.GetStop()) {
       return;
     }
 
@@ -101,10 +96,11 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
   }
 }
 
-void Worker::PrepareResult(const easehts::GenomeLoc& location,
-                           const uint64_t min_contig_pos,
-                           const std::vector<easehts::PileupTraverse>& tumor_traverses,
-                           const std::vector<easehts::PileupTraverse>& normal_traverses) {
+void Worker::PrepareResult(
+    const easehts::GenomeLoc& location,
+    const uint64_t min_contig_pos,
+    const std::vector<easehts::GATKPileupTraverse>& tumor_traverses,
+    const std::vector<easehts::GATKPileupTraverse>& normal_traverses) {
   const char up_ref = std::toupper(reference_.GetSequenceAt(location.GetContig(),
       location.GetStart(), location.GetStop())[0]);
   // only process bases where the reference is [ACGT], because the FASTA
@@ -134,7 +130,7 @@ void Worker::PrepareResult(const easehts::GenomeLoc& location,
       !mutect_args_.force_output.getValue()) {
     return;
   }
-  WARN(easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
+  WARN_COND(false, easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
                                         location.GetContigId(), location.GetStart(),
                                         normal_read_pile.Size() +
                                         tumor_read_pile.Size()));
@@ -142,6 +138,12 @@ void Worker::PrepareResult(const easehts::GenomeLoc& location,
   tumor_read_pile.InitPileups();
   normal_read_pile.InitPileups();
 
+  //printf("location: %d\n", location.GetStart() + 1);
+  //for (int i=0; i < tumor_read_pile.pileup_.Size(); i++) {
+  //  bam1_t* read = tumor_read_pile.pileup_[i].GetRead();
+  //  printf("%s-%d\n", easehts::SAMBAMRecord::GetQueryName(read),
+  //  easehts::SAMBAMRecord::GetSequenceLength(read));
+  //}
   PrepareCondidate(up_ref, location, tumor_read_pile, normal_read_pile);
 }
 
@@ -458,6 +460,7 @@ void Worker::PrepareCondidate(
     // specified
     if (!m.IsRejected() ||
         (!mutect_args_.only_passing_calls.getValue())) {
+      fprintf(stderr, "write candidate:%d\n", m.location.GetStart());
       call_stats_generator_.WriteCallStats(m);
     }
   }
@@ -591,8 +594,8 @@ void Worker::FilterReads(
 void Mutect::Run() {
   easehts::GenomeLocParser parser(reference_.GetSequenceDictionary());
   std::vector<easehts::GenomeLoc> intervals =
-    easehts::IntervalUtils::IntervalFileToList(parser,
-                                               mutect_args_.interval_file.getValue());
+    easehts::IntervalUtils::LoadIntervals(parser,
+                                          mutect_args_.interval_file.getValue());
 
   call_stats_generator_.WriteHeader();
   int thread_cnt = mutect_args_.thread_cnt.getValue();
@@ -605,9 +608,15 @@ void Mutect::Run() {
       Worker worker(this->mutect_args_, this->reference_, this->call_stats_generator_);
       while (interval_index < intervals.size()) {
         size_t index = interval_index++;
+        fprintf(stderr, "%d--%d-%d\n", index, intervals[index].GetStart(), intervals[index].GetStop());
         if (index >= intervals.size()) break;
 
-        worker.Run(intervals[index]);
+        // As the htslib file reader is [start, end)
+        // but the interval is [start, end]
+        worker.Run(easehts::GenomeLoc(intervals[index].GetContig(),
+                                      intervals[index].GetContigId(),
+                                      intervals[index].GetStart(),
+                                      intervals[index].GetStop() + 1));
       }
     });
   }
