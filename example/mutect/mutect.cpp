@@ -130,7 +130,7 @@ void Worker::PrepareResult(
       !mutect_args_.force_output.getValue()) {
     return;
   }
-  WARN_COND(false, easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
+  WARN_COND(true, easehts::utils::StringFormatCStr("tid:%d pos:%d number of pileup:%d",
                                         location.GetContigId(), location.GetStart(),
                                         normal_read_pile.Size() +
                                         tumor_read_pile.Size()));
@@ -138,12 +138,12 @@ void Worker::PrepareResult(
   tumor_read_pile.InitPileups();
   normal_read_pile.InitPileups();
 
-  //printf("location: %d\n", location.GetStart() + 1);
-  //for (int i=0; i < tumor_read_pile.pileup_.Size(); i++) {
-  //  bam1_t* read = tumor_read_pile.pileup_[i].GetRead();
-  //  printf("%s-%d\n", easehts::SAMBAMRecord::GetQueryName(read),
-  //  easehts::SAMBAMRecord::GetSequenceLength(read));
-  //}
+  printf("location: %d\n", location.GetStart() + 1);
+  for (int i=0; i < tumor_read_pile.pileup_.Size(); i++) {
+    bam1_t* read = tumor_read_pile.pileup_[i].GetRead();
+    printf("%s-%d\n", easehts::SAMBAMRecord::GetQueryName(read),
+    easehts::SAMBAMRecord::GetSequenceLength(read));
+  }
   PrepareCondidate(up_ref, location, tumor_read_pile, normal_read_pile);
 }
 
@@ -460,7 +460,6 @@ void Worker::PrepareCondidate(
     // specified
     if (!m.IsRejected() ||
         (!mutect_args_.only_passing_calls.getValue())) {
-      fprintf(stderr, "write candidate:%d\n", m.location.GetStart());
       call_stats_generator_.WriteCallStats(m);
     }
   }

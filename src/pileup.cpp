@@ -1,6 +1,7 @@
 #include "easehts/pileup.h"
 #include "easehts/sam_bam_record.h"
 #include "easehts/base_utils.h"
+#include "easehts/downsampler.h"
 
 #include <assert.h>
 #include <string>
@@ -270,8 +271,6 @@ bool GATKPileupTraverse::HasNext() {
         for (int i = 0; i < cur_coordianate_ - read_start; i++) {
           cur_tracker_->StepForwardOnGenome();
         }
-        int size = buffer_list_.size();
-        PileupTracker *tracker = buffer_list_.back();
         buffer_list_.push_back(cur_tracker_);
 
         if (!GetNextFilteredRead()) {
@@ -283,6 +282,10 @@ bool GATKPileupTraverse::HasNext() {
         break;
       }
     }
+  }
+
+  if (buffer_list_.size() > downsampler_.GetToCoverage()) {
+    downsampler_.DownsampleByAlignmentStart(&buffer_list_);
   }
 
   // free the pileup element

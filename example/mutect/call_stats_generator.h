@@ -112,7 +112,7 @@ class CallStatsGenerator : public easehts::NonCopyable {
     d["tumor_alt_qscores"] = Format(candidate.tumor_alt_quality_scores);
     d["normal_ref_qscores"] = Format(candidate.normal_ref_quality_scores);
     d["normal_alt_qscores"] = Format(candidate.normal_alt_quality_scores);
-    d["failure_reasons"] = easehts::utils::Join(candidate.rejection_reasons, kTab);
+    d["failure_reasons"] = easehts::utils::Join(candidate.rejection_reasons, ",");
     d["judgement"] = keep_string;
 
     return Generate(d);
@@ -189,7 +189,6 @@ class CallStatsGenerator : public easehts::NonCopyable {
     for (const auto& value : headers_) {
       msg.push_back(d.at(value));
     }
-    fprintf(stderr, "*****position:%s\n", d.at("position").c_str());
 
     return easehts::utils::Join(msg, kTab);
   }

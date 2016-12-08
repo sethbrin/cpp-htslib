@@ -93,6 +93,10 @@ class AlignmentStateMachine : public NonCopyable {
     return offset_into_current_cigar_element_;
   }
 
+  int GetGenomeOffset() const {
+    return genome_offset_;
+  }
+
   /**
    * Step the state machine forward one unit
    *

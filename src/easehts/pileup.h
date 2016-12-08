@@ -6,11 +6,13 @@
 #define EASEHTSLIB_PILEUP_H_
 
 #include "alignment_state_machine.h"
-#include "noncopyable.h"
-#include "utils.h"
-#include "sam_bam_record.h"
+#include "downsampler.h"
 #include "genome_loc.h"
+#include "pileup_tracker.h"
+#include "sam_bam_record.h"
 #include "sam_bam_reader.h"
+#include "utils.h"
+#include "noncopyable.h"
 
 #include <htslib/sam.h>
 
@@ -402,9 +404,11 @@ class PileupTraverse : public NonCopyable {
 class GATKPileupTraverse : public NonCopyable {
  public:
   GATKPileupTraverse(BAMIndexReader* reader,
-                     const GenomeLoc& traverse_interval)
+                     const GenomeLoc& traverse_interval,
+                     int to_coverage = 1000)
   : interval_(traverse_interval),
-    reader_(reader) {
+    reader_(reader),
+    downsampler_(to_coverage) {
     reader_->SetRegion(interval_.GetContigId(), interval_.GetStart(),
                       interval_.GetStop());
 
@@ -422,7 +426,8 @@ class GATKPileupTraverse : public NonCopyable {
   GATKPileupTraverse(GATKPileupTraverse&& rhs) {
     read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
     reader_ = rhs.reader_;
-    swap(buffer_list_, rhs.buffer_list_);
+    std::swap(buffer_list_, rhs.buffer_list_);
+    std::swap(downsampler_, rhs.downsampler_);
   }
 
   GATKPileupTraverse& operator=(GATKPileupTraverse&& rhs) {
@@ -430,7 +435,8 @@ class GATKPileupTraverse : public NonCopyable {
 
     read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
     reader_ = rhs.reader_;
-    swap(buffer_list_, rhs.buffer_list_);
+    std::swap(buffer_list_, rhs.buffer_list_);
+    std::swap(downsampler_, rhs.downsampler_);
     return *this;
   }
 
@@ -489,37 +495,6 @@ class GATKPileupTraverse : public NonCopyable {
     return false;
   }
 
-  class PileupTracker {
-   public:
-    int start;
-    int end;
-    AlignmentStateMachine state_machine;
-    bam1_t* read;
-
-    PileupTracker(bam1_t* read)
-    : state_machine(read) {
-      this->read = read;
-      start = SAMBAMRecord::GetAlignmentStart(read);
-      end = SAMBAMRecord::GetAlignmentEnd(read);
-    }
-
-    bool StepForwardOnGenome() {
-      if (state_machine.StepForwardOnGenome() == 0) {
-        return false;
-      } else {
-        return true;
-      }
-    }
-
-    bool IsBeforeEnd(int cur) {
-      return cur <= end;
-    }
-
-    bool IsAfterStart(int cur) {
-      return cur >= start;
-    }
-
-  };
 
   GenomeLoc interval_;
   BAMIndexReader* reader_;
@@ -531,6 +506,8 @@ class GATKPileupTraverse : public NonCopyable {
   std::unique_ptr<ReadBackedPileup> read_backed_pileup_;
   PileupTracker* cur_tracker_;
   bool is_eof_ = false;
+
+  LevelingDownsampler downsampler_;
 
 };
 
