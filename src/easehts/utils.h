@@ -6,14 +6,16 @@
 #define EASEHTSLIB_UTILS_H
 
 #include <htslib/sam.h>
+
+#include <atomic>
+#include <iterator>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <stdio.h>
-#include <vector>
 #include <sys/stat.h>
+#include <vector>
 
-#include <sstream>
-#include <iterator>
 // store some common values
 
 #include <assert.h>
@@ -105,7 +107,6 @@ inline bool FileExists(const std::string filename) {
   return (stat(filename.c_str(), &buffer) == 0);
 }
 
-
 /**
  * Returns n random indices drawn without replacement from the range 0..(k-1)
  *
@@ -114,6 +115,67 @@ inline bool FileExists(const std::string filename) {
  * @return a list of k random indices ranging from 0 to (n-1) without duplicates
  */
 std::vector<int> SampleIndicesWithoutReplacemement(int n, int k);
+
+/**
+ * Implemention of java random
+ *
+ * NOTE not-threadsafety use in thread local
+ *
+ */
+class ThreadLocalRandom {
+ public:
+  explicit ThreadLocalRandom(long long seed) {
+    SedSeed(seed);
+  }
+
+  int NextInt() {
+    return Next(32);
+  }
+
+  int NextInt(int n) {
+    assert(n > 0);
+
+    if ((n & -n) == n) // i.e. n is power of 2
+      return static_cast<int>((n * static_cast<long>(Next(31))) >> 31);
+
+    int bits, val;
+    do {
+      bits = Next(31);
+      val = bits % n;
+    } while (bits - val + (n - 1) < 0);
+    return val;
+  }
+
+ protected:
+  int Next(int bits) {
+    seed_ = (seed_ * kMultiplier + kAddend) & kMask;
+    return static_cast<int>(seed_ >> (48 - bits));
+  }
+
+ private:
+  void SedSeed(long long seed) {
+    seed_ = (seed ^ kMultiplier) & kMask;
+  }
+
+  long long seed_;
+
+  const static long long kMultiplier;
+  const static long long kAddend;
+  const static long long kMask;
+};
+
+
+/**
+ * Implemention of java Shuffle
+ */
+template <typename T>
+void Shuffle(std::vector<T>& list, ThreadLocalRandom& rnd) {
+  int size = list.size();
+  for (int i = size; i > 1; i--) {
+    std::swap(list[i - 1], list[rnd.NextInt(i)]);
+  }
+}
+
 
 } // utils
 } // easehts

@@ -39,11 +39,16 @@ std::vector<int> SampleIndicesWithoutReplacemement(int n, int k) {
     chosen_balls.push_back(i);
   }
 
-  std::random_device rd;
-  std::mt19937 g(rd());
-  std::shuffle(chosen_balls.begin(), chosen_balls.end(), g);
+  // GATK seed in GenomeAnalysisEngine.java
+  ThreadLocalRandom rnd(47382911LL);
+  Shuffle(chosen_balls, rnd);
   return std::vector<int>(chosen_balls.begin(), chosen_balls.begin() + k);
 }
+
+// Random
+const long long ThreadLocalRandom::kMultiplier = 0x5DEECE66DLL;
+const long long ThreadLocalRandom::kAddend = 0xBLL;
+const long long ThreadLocalRandom::kMask = (1LL << 48) - 1;
 
 } // util
 } // easehts
