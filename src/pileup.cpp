@@ -232,7 +232,7 @@ bool GATKPileupTraverse::HasNext() {
   while (!buffer_list_.empty() &&
          (!buffer_list_.front()->IsBeforeEnd(cur_coordianate_))) {
     // free
-    bam_destroy1(buffer_list_.front()->read);
+    //bam_destroy1(buffer_list_.front()->read);
     delete buffer_list_.front();
     buffer_list_.pop_front();
   }
@@ -291,6 +291,7 @@ bool GATKPileupTraverse::HasNext() {
     // StepForwardOnGenome
     // 走下一格，如果返回false，删除
     if (!tracker->StepForwardOnGenome()) {
+      delete tracker;
       iter = buffer_list_.erase(iter);
       continue;
     }

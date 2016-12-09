@@ -456,7 +456,7 @@ class GATKPileupTraverse : public NonCopyable {
     int idx = 0;
     while (!buffer_list_.empty()) {
       // free
-      bam_destroy1(buffer_list_.front()->read);
+      //bam_destroy1(buffer_list_.front()->read);
       delete buffer_list_.front();
       buffer_list_.pop_front();
     }

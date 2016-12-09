@@ -172,6 +172,7 @@ class LevelingDownsampler {
     int current_index = 0;
     for (auto iter = group->begin(); iter != group->end();) {
       if (!item_to_keep[current_index++]) {
+        delete *iter;
         iter = group->erase(iter);
         num_discarded_items ++;
       } else {

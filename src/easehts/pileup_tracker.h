@@ -24,7 +24,11 @@ class PileupTracker {
       this->read = read;
       start = SAMBAMRecord::GetAlignmentStart(read);
       end = SAMBAMRecord::GetAlignmentEnd(read);
-    }
+  }
+
+  ~PileupTracker() {
+    bam_destroy1(read);
+  }
 
   bool StepForwardOnGenome() {
     if (state_machine.StepForwardOnGenome() == 0) {
