@@ -107,14 +107,6 @@ inline bool FileExists(const std::string filename) {
   return (stat(filename.c_str(), &buffer) == 0);
 }
 
-/**
- * Returns n random indices drawn without replacement from the range 0..(k-1)
- *
- * @param n the total number of indices sampled from
- * @param k the number of random indices to draw (without replacement)
- * @return a list of k random indices ranging from 0 to (n-1) without duplicates
- */
-std::vector<int> SampleIndicesWithoutReplacemement(int n, int k);
 
 /**
  * Implemention of java random
@@ -163,6 +155,16 @@ class ThreadLocalRandom {
   const static long long kAddend;
   const static long long kMask;
 };
+
+/**
+ * Returns n random indices drawn without replacement from the range 0..(k-1)
+ *
+ * @param n the total number of indices sampled from
+ * @param k the number of random indices to draw (without replacement)
+ * @return a list of k random indices ranging from 0 to (n-1) without duplicates
+ */
+std::vector<int> SampleIndicesWithoutReplacemement(int n, int k,
+                                                   ThreadLocalRandom& rnd);
 
 
 /**

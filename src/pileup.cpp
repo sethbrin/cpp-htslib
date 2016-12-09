@@ -284,6 +284,19 @@ bool GATKPileupTraverse::HasNext() {
     }
   }
 
+  // remove the pileup
+  for (auto iter = buffer_list_.begin(); iter != buffer_list_.end();) {
+    PileupTracker* tracker = *iter;
+    // 所以buffer中并不是所有read都可以生成pileup
+    // StepForwardOnGenome
+    // 走下一格，如果返回false，删除
+    if (!tracker->StepForwardOnGenome()) {
+      iter = buffer_list_.erase(iter);
+      continue;
+    }
+    ++iter;
+  }
+
   if (buffer_list_.size() > downsampler_.GetToCoverage()) {
     downsampler_.DownsampleByAlignmentStart(&buffer_list_);
   }
@@ -301,14 +314,9 @@ bool GATKPileupTraverse::HasNext() {
       ++iter;
       continue;
     }
+
+
     if (tracker->IsBeforeEnd(cur_coordianate_)) {
-      // 所以buffer中并不是所有read都可以生成pileup
-      // StepForwardOnGenome
-      // 走下一格，如果返回false，删除
-      if (!tracker->StepForwardOnGenome()) {
-        iter = buffer_list_.erase(iter);
-        continue;
-      }
       PileupElement element;
       if (tracker->state_machine.MakePileupElement(&element)) {
         read_backed_pileup_->AddElement(element);

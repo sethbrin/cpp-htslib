@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 2.6)
 project(easehtslib)
 
-#set(CMAKE_CXX_COMPILER clang++)
+#set(CMAKE_CXX_COMPILER /opt/intel/compilers_and_libraries_2016/linux/bin/intel64/icpc)
 
 set(CXX_FLAGS
         -g
         -O2
+        #-pg
         # -DVALGRIND
         # -DMUDUO_STD_STRING
         -DCHECK_PTHREAD_RETURN_VALUE

@@ -32,15 +32,14 @@ void tokenize(const std::string &s, char c, std::vector<std::string> *res) {
     res->emplace_back(start, end);
 }
 
-std::vector<int> SampleIndicesWithoutReplacemement(int n, int k) {
+std::vector<int> SampleIndicesWithoutReplacemement(int n, int k,
+                                                   ThreadLocalRandom& rnd) {
   std::vector<int> chosen_balls;
   chosen_balls.reserve(n);
   for (int i = 0; i < n; i++) {
     chosen_balls.push_back(i);
   }
 
-  // GATK seed in GenomeAnalysisEngine.java
-  ThreadLocalRandom rnd(47382911LL);
   Shuffle(chosen_balls, rnd);
   return std::vector<int>(chosen_balls.begin(), chosen_balls.begin() + k);
 }

@@ -25,8 +25,11 @@ class LevelingDownsampler {
    * @param min_element_per_stack_ no stack will be reduced below this size during downsampling.  That is,
    * if a stack has only 3 elements and minElementsPerStack is 3, no matter what
    * we'll not reduce this stack below 3.
+   *
+   * NOTE GATK seed in GenomeAnalysisEngine.java
    */
-  LevelingDownsampler(int target_size, int min_element_per_stack) {
+  LevelingDownsampler(int target_size, int min_element_per_stack)
+    : rnd_(47382911LL) {
     ERROR_COND(target_size < 0,
                utils::StringFormatCStr(
                    "target_size must be >=0 but got %d", target_size));
@@ -35,6 +38,10 @@ class LevelingDownsampler {
                    "target_size must be >=0 but got %d", min_element_per_stack));
     target_size_ = target_size;
     min_element_per_stack_ = min_element_per_stack;
+
+    // As the random is used once in GenomeAnalysisEngine.java
+    rnd_.NextInt();
+
   }
 
   explicit LevelingDownsampler(int target_size)
@@ -45,13 +52,15 @@ class LevelingDownsampler {
 
   LevelingDownsampler(LevelingDownsampler&& rhs)
     : target_size_(rhs.target_size_),
-    min_element_per_stack_(rhs.min_element_per_stack_) {}
+    min_element_per_stack_(rhs.min_element_per_stack_),
+    rnd_(rhs.rnd_) {}
 
   LevelingDownsampler& operator=(LevelingDownsampler&& rhs) {
     if (this == &rhs) return *this;
 
     target_size_ = rhs.target_size_,
     min_element_per_stack_ = rhs.min_element_per_stack_;
+    rnd_ = rhs.rnd_;
     return *this;
   }
 
@@ -154,7 +163,7 @@ class LevelingDownsampler {
     item_to_keep.reserve(group_size);
     std::vector<int> chosen_index = utils::SampleIndicesWithoutReplacemement(
         group_size,
-        num_items_to_keep);
+        num_items_to_keep, rnd_);
     for (int selected_index : chosen_index) {
       item_to_keep[selected_index] = true;
     }
@@ -175,6 +184,7 @@ class LevelingDownsampler {
 
   int target_size_;
   int min_element_per_stack_;
+  utils::ThreadLocalRandom rnd_;
 
 };
 

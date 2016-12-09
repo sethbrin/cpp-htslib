@@ -196,11 +196,11 @@ class SAMBAMRecord : public NonCopyable {
     return b->core.l_qseq;
   }
 
-  uint32_t GetInferredInsertSize() {
+  int GetInferredInsertSize() {
     return raw_record_->core.isize;
   }
 
-  static uint32_t GetInferredInsertSize(bam1_t* b) {
+  static int GetInferredInsertSize(bam1_t* b) {
     return b->core.isize;
   }
 
@@ -462,7 +462,7 @@ class SAMBAMRecord : public NonCopyable {
     if (GetReadUnmappedFlag(read) || GetMateUnmappedFlag(read)) return false;
     if (GetReadNegativeStrandFlag(read) == GetMateNegativeStrandFlag(read)) return false;
     if (GetReadNegativeStrandFlag(read)) {
-      return GetAlignmentStart(read) > GetMateAlignmentStart(read);
+      return GetAlignmentEnd(read) > GetMateAlignmentStart(read);
     } else {
       return GetAlignmentStart(read) <=
         GetMateAlignmentStart(read) + GetInferredInsertSize(read);
