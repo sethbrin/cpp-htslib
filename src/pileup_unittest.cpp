@@ -75,3 +75,16 @@ TEST(MutectBam, TumorPileupTraverse) {
   }
 
 }
+
+TEST(GATKPileupElement, Destruction) {
+  TEST_FILE("MG225_tumor_sorted_X.bam", filename);
+  BAMIndexReader reader(filename);
+  reader.SetRegion(22, 15482483-3000, 15482603+3000);
+
+  SAMBAMRecord* record = new SAMBAMRecord();
+  reader.HasNext(record);
+
+  GATKPileupElement* element = new GATKPileupElement(record, 0, 0, false, 1);
+  EXPECT_NE(element->GetRead()->GetRawRecord(), nullptr);
+  delete element;
+}

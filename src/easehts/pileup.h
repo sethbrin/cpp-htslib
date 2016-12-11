@@ -107,7 +107,62 @@ class PileupElement {
   // TODO cache some field which may compute many times
   uint8_t qual_;
   uint8_t base_;
+};
 
+/**
+ * GATK pileup element
+ */
+class GATKPileupElement {
+ public:
+  GATKPileupElement(SAMBAMRecord* record,
+                    uint8_t qual, uint8_t base,
+                    bool is_del, int offset)
+    : record_(record),
+    qual_(qual),
+    base_(base),
+    is_del_(is_del),
+    offset_(offset) {}
+
+  ~GATKPileupElement() {
+    delete record_;
+  }
+
+  /*
+   * Is this element a deletion w.r.t the reference gnome
+   * @return true if this is a deletion, false otherwise*/
+  bool IsDeletion() const {
+    return is_del_;
+  }
+
+  uint8_t GetQual() const {
+    return qual_;
+  }
+
+  SAMBAMRecord* GetRead() const {
+    return record_;
+  }
+
+  uint8_t GetBase() const {
+    return is_del_ ? 'D' : base_;
+  }
+
+  int GetMappingQuality() const {
+    return record_->GetMapQuality();
+  }
+
+  int GetOffset() const {
+    return offset_;
+  }
+
+  const static char kDeletionBase;
+  const static char kDeletionQual;
+
+ private:
+  SAMBAMRecord* record_;
+  uint8_t qual_;
+  uint8_t base_;
+  bool is_del_;
+  int offset_;
 };
 
 class ReadBackedPileup;

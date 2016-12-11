@@ -13,8 +13,12 @@
 namespace ncic {
 namespace easehts {
 
+// TODO add a abstract PileupElement to contains the static member
 const char PileupElement::kDeletionBase = 'D';
 const char PileupElement::kDeletionQual = (char)16;
+
+const char GATKPileupElement::kDeletionBase = 'D';
+const char GATKPileupElement::kDeletionQual = (char)16;
 
 const int ReadBackedPileup::kUninitializedCachedIntValue = -1;
 
