@@ -185,7 +185,7 @@ int ReadBackedPileup::GetNumberofMappingQualityZeroReads() const {
   auto pred = [](PileupElement element)->bool {
     return SAMBAMRecord::GetMapQuality(element.GetRead()) == 0;
   };
-  GetPileupByFilterCount(pred);
+  return GetPileupByFilterCount(pred);
 }
 
 int ReadBackedPileup::GetNumberOfDeletions() {
@@ -302,7 +302,7 @@ bool GATKPileupTraverse::HasNext() {
     ++iter;
   }
 
-  if (buffer_list_.size() > downsampler_.GetToCoverage()) {
+  if (false && buffer_list_.size() > downsampler_.GetToCoverage()) {
     downsampler_.DownsampleByAlignmentStart(&buffer_list_);
   }
 

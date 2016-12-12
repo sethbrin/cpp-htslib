@@ -194,9 +194,9 @@ void Worker::PrepareCondidate(
     combine_power = tumor_power;
   }
 
-  int map_q0_reads =
-    tumor_read_pile.quality_score_filter_pileup_.GetNumberofMappingQualityZeroReads() +
-    normal_read_pile.quality_score_filter_pileup_.GetNumberofMappingQualityZeroReads();
+  int map_q0_reads = tumor_read_pile.quality_score_filter_pileup_.GetNumberofMappingQualityZeroReads();
+  map_q0_reads += normal_read_pile.quality_score_filter_pileup_.GetNumberofMappingQualityZeroReads();
+
 
   int total_reads =
     tumor_read_pile.quality_score_filter_pileup_.Size() +
@@ -433,7 +433,7 @@ void Worker::PrepareCondidate(
     if (mutect_args_.force_alleles.getValue()) {
       call_stats_generator_.WriteCallStats(candidate);
     } else {
-      message_by_tumor_lod[candidate.initial_normal_lod] = &candidate;
+      message_by_tumor_lod[candidate.initial_tumor_lod] = &candidate;
     }
   }
 

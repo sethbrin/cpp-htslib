@@ -241,7 +241,7 @@ class CallStatsGenerator : public easehts::NonCopyable {
     if (d == CandidateMutation::kDoubleUnintialized) {
       return "n/a";
     }
-    return std::to_string(d);
+    return easehts::utils::RoundNearestFormat(d, 6);
   }
 
   std::vector<std::string> headers_;

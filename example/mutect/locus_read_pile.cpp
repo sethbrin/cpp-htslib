@@ -32,6 +32,8 @@ LocusReadPile::LocusReadPile(SampleType sample_type, char ref_base, int min_qual
 
 void LocusReadPile::AddPileupElement(const easehts::ReadBackedPileup& read_backed_pileup) {
   for (size_t i=0; i < read_backed_pileup.Size(); i++) {
+    const char base = read_backed_pileup[i].GetBase();
+    if (base == 'N' || base == 'n') continue;
     pileup_.AddElement(read_backed_pileup[i]);
   }
 }
@@ -71,8 +73,8 @@ void LocusReadPile::InitPileups() {
 
   // Calculate how many are at this site and how many insertion
   // are within INSERTION_PROXIMITY bp
-  for (size_t idx=0; idx<quality_score_filter_pileup_.Size(); idx++) {
-    const easehts::PileupElement& p = quality_score_filter_pileup_[idx];
+  for (size_t idx=0; idx<no_overlap_pileup.Size(); idx++) {
+    const easehts::PileupElement& p = no_overlap_pileup[idx];
     if (p.GetBase() == easehts::PileupElement::kDeletionBase) {
       deletions_count_++;
     } else {
@@ -82,13 +84,13 @@ void LocusReadPile::InitPileups() {
       int event_start = 0;
       for (const easehts::CigarElement& cigar : cigars) {
         if (cigar.GetOperator() == easehts::CigarElement::INSERTION &&
-            std::abs(event_start - p.GetOffset()) < kGapEventProximity) {
+            std::abs(event_start - p.GetOffset()) <= kGapEventProximity) {
           insertion_count_ ++;
           break;
         }
 
         if (cigar.GetOperator() == easehts::CigarElement::DELETION &&
-            std::abs(event_start - p.GetOffset()) < kGapEventProximity) {
+            std::abs(event_start - p.GetOffset()) <= kGapEventProximity) {
           deletions_count_ ++;
           break;
         }

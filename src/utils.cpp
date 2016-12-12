@@ -49,6 +49,21 @@ const long long ThreadLocalRandom::kMultiplier = 0x5DEECE66DLL;
 const long long ThreadLocalRandom::kAddend = 0xBLL;
 const long long ThreadLocalRandom::kMask = (1LL << 48) - 1;
 
+
+std::string RoundNearestFormat(double val, size_t max_digits) {
+  double EPS = std::pow(10.0, -1.0 * (max_digits + 1)) * 5;
+  char str[80];
+  for (int i = 0; i < max_digits; i++) {
+    double round_val = RoundNearest(val, i);
+    if (std::fabs(round_val - val) < EPS) {
+      std::sprintf(str, ("%." + std::to_string(i) + "lf").c_str(), round_val);
+      return std::string(str);
+    }
+  }
+  std::sprintf(str, ("%." + std::to_string(max_digits) + "lf").c_str(), val);
+  return std::string(str);
+}
+
 } // util
 } // easehts
 } // ncic

@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <vector>
+#include <cmath>
 
 // store some common values
 
@@ -177,6 +178,27 @@ void Shuffle(std::vector<T>& list, ThreadLocalRandom& rnd) {
     std::swap(list[i - 1], list[rnd.NextInt(i)]);
   }
 }
+
+/**
+ * Round to the nearest double val
+ */
+inline double RoundNearest(double val, size_t digits) {
+  if (digits > 0) {
+    return RoundNearest(val * 10.0, digits-1)/10.0;
+  } else {
+    return std::round(val);
+  }
+}
+
+/**
+ * format to the nearest double val
+ *
+ * @example max_digits 6
+ * 1.2345678 is 1.234568
+ * 1.230000001 is 1.23
+ * 1.000000001 is 1
+ */
+std::string RoundNearestFormat(double val, size_t max_digits);
 
 
 } // utils
