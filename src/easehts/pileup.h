@@ -460,10 +460,10 @@ class GATKPileupTraverse : public NonCopyable {
  public:
   GATKPileupTraverse(BAMIndexReader* reader,
                      const GenomeLoc& traverse_interval,
+                     bool is_downsampling=true,
                      int to_coverage = 1000)
   : interval_(traverse_interval),
-    reader_(reader),
-    downsampler_(to_coverage) {
+    reader_(reader) {
     reader_->SetRegion(interval_.GetContigId(), interval_.GetStart(),
                       interval_.GetStop());
 
@@ -475,7 +475,11 @@ class GATKPileupTraverse : public NonCopyable {
     } else {
       cur_tracker_ = new PileupTracker(read_);
     }
-
+    if (is_downsampling) {
+      downsampler_.reset(new LevelingDownsampler(to_coverage));
+    } else {
+      downsampler_.reset(nullptr);
+    }
   }
 
   GATKPileupTraverse(GATKPileupTraverse&& rhs) {
@@ -562,7 +566,7 @@ class GATKPileupTraverse : public NonCopyable {
   PileupTracker* cur_tracker_;
   bool is_eof_ = false;
 
-  LevelingDownsampler downsampler_;
+  std::unique_ptr<LevelingDownsampler> downsampler_;
 
 };
 

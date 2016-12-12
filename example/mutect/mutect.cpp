@@ -34,13 +34,15 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
   std::vector<easehts::GATKPileupTraverse> normal_traverses;
   std::vector<easehts::GATKPileupTraverse> tumor_traverses;
 
-  int overlap_size = mutect_args_.overlap_size.getValue();
+  bool is_downsampling = mutect_args_.downsampling.getValue();
   for (easehts::BAMIndexReader& reader : normal_readers_) {
-    normal_traverses.emplace_back(&reader, interval);
+    normal_traverses.emplace_back(&reader, interval,
+                                  is_downsampling=is_downsampling);
   }
 
   for (easehts::BAMIndexReader& reader : tumor_readers_) {
-    tumor_traverses.emplace_back(&reader, interval);
+    tumor_traverses.emplace_back(&reader, interval,
+                                 is_downsampling=is_downsampling);
   }
 
   // the min postion of current site

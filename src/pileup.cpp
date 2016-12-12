@@ -302,8 +302,8 @@ bool GATKPileupTraverse::HasNext() {
     ++iter;
   }
 
-  if (false && buffer_list_.size() > downsampler_.GetToCoverage()) {
-    downsampler_.DownsampleByAlignmentStart(&buffer_list_);
+  if (downsampler_ && buffer_list_.size() > downsampler_->GetToCoverage()) {
+    downsampler_->DownsampleByAlignmentStart(&buffer_list_);
   }
 
   // free the pileup element
