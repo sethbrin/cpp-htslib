@@ -7,7 +7,7 @@
 
 #include "base_utils.h"
 #include "diploid_genotype.h"
-#include "pileup.h"
+#include "gatk/pileup.h"
 
 #include <cmath>
 #include <vector>
@@ -111,18 +111,18 @@ class DiploidSNPGenotypeLikelihoods {
   static const double kPloidyAdjustment;
   static const double kLog10_3;
 
-  static char QualToUse(const PileupElement& p,
+  static char QualToUse(const gatk::PileupElement* p,
                         bool ignore_bad_bases,
                         bool cap_base_quals_at_mapping_qual,
                         int min_base_qual) {
     if (ignore_bad_bases &&
-        !BaseUtils::IsRegularBase(p.GetBase())) {
+        !BaseUtils::IsRegularBase(p->GetBase())) {
       return 0;
     } else {
-      char qual = p.GetQual();
+      char qual = p->GetQual();
       WARN_COND(qual > 93, "We encountered an extremely high quality score");
       if (cap_base_quals_at_mapping_qual) {
-        qual = std::min(255 & qual, p.GetMappingQuality());
+        qual = std::min(255 & qual, p->GetMappingQuality());
       }
       if (qual < min_base_qual) {
         qual = 0;

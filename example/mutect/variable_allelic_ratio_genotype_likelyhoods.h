@@ -5,8 +5,9 @@
 #ifndef MUTECT_VARIABLE_ALLELIC_RATIO_GENOTYPE_LKEELIHOODS_H_
 #define MUTECT_VARIABLE_ALLELIC_RATIO_GENOTYPE_LKEELIHOODS_H_
 
-#include "easehts/diploid_SNP_genotype_likelihoods.h"
-#include "easehts/diploid_genotype.h"
+#include <easehts/diploid_SNP_genotype_likelihoods.h>
+#include <easehts/diploid_genotype.h>
+#include <easehts/gatk/pileup.h>
 
 #include <cmath>
 
@@ -87,9 +88,9 @@ class VariableAllelicRatioGenotypeLikelihoods : easehts::DiploidSNPGenotypeLikel
     return 1;
   }
 
-  int Add(const easehts::PileupElement& element, bool ignore_bad_bases,
+  int Add(const easehts::gatk::PileupElement* element, bool ignore_bad_bases,
           bool cap_base_quals_at_mapping_qual, int min_base_qual) {
-    char base = element.GetBase();
+    char base = element->GetBase();
     char qual = QualToUse(element, ignore_bad_bases,
                           cap_base_quals_at_mapping_qual, min_base_qual);
     return qual == 0 ? 0 : Add(base, qual, 0, 0, 1);

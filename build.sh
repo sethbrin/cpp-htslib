@@ -9,7 +9,7 @@ BUILD_TYPE=${BUILD_TYPE:-./debug}
 INSTALL_DIR=${INSTALL_DIR:-${BUILD_TYPE}-install}
 
 # build htslib
-cd htslib \
+cd ./thirdparty/htslib \
   && make \
   && cd ..
 

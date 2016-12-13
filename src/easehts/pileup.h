@@ -5,10 +5,7 @@
 #ifndef EASEHTSLIB_PILEUP_H_
 #define EASEHTSLIB_PILEUP_H_
 
-#include "alignment_state_machine.h"
-#include "downsampler.h"
 #include "genome_loc.h"
-#include "pileup_tracker.h"
 #include "sam_bam_record.h"
 #include "sam_bam_reader.h"
 #include "utils.h"
@@ -107,62 +104,6 @@ class PileupElement {
   // TODO cache some field which may compute many times
   uint8_t qual_;
   uint8_t base_;
-};
-
-/**
- * GATK pileup element
- */
-class GATKPileupElement {
- public:
-  GATKPileupElement(SAMBAMRecord* record,
-                    uint8_t qual, uint8_t base,
-                    bool is_del, int offset)
-    : record_(record),
-    qual_(qual),
-    base_(base),
-    is_del_(is_del),
-    offset_(offset) {}
-
-  ~GATKPileupElement() {
-    delete record_;
-  }
-
-  /*
-   * Is this element a deletion w.r.t the reference gnome
-   * @return true if this is a deletion, false otherwise*/
-  bool IsDeletion() const {
-    return is_del_;
-  }
-
-  uint8_t GetQual() const {
-    return qual_;
-  }
-
-  SAMBAMRecord* GetRead() const {
-    return record_;
-  }
-
-  uint8_t GetBase() const {
-    return is_del_ ? 'D' : base_;
-  }
-
-  int GetMappingQuality() const {
-    return record_->GetMapQuality();
-  }
-
-  int GetOffset() const {
-    return offset_;
-  }
-
-  const static char kDeletionBase;
-  const static char kDeletionQual;
-
- private:
-  SAMBAMRecord* record_;
-  uint8_t qual_;
-  uint8_t base_;
-  bool is_del_;
-  int offset_;
 };
 
 class ReadBackedPileup;
@@ -456,119 +397,119 @@ class PileupTraverse : public NonCopyable {
 /**
  * A implementation of GATK Pileup
  */
-class GATKPileupTraverse : public NonCopyable {
- public:
-  GATKPileupTraverse(BAMIndexReader* reader,
-                     const GenomeLoc& traverse_interval,
-                     bool is_downsampling=true,
-                     int to_coverage = 1000)
-  : interval_(traverse_interval),
-    reader_(reader) {
-    reader_->SetRegion(interval_.GetContigId(), interval_.GetStart(),
-                      interval_.GetStop());
-
-    read_backed_pileup_.reset(new ReadBackedPileup());
-    cur_coordianate_ = interval_.GetStart();
-    if (!GetNextFilteredRead()) {
-      is_eof_ = true;
-      cur_tracker_ = nullptr;
-    } else {
-      cur_tracker_ = new PileupTracker(read_);
-    }
-    if (is_downsampling) {
-      downsampler_.reset(new LevelingDownsampler(to_coverage));
-    } else {
-      downsampler_.reset(nullptr);
-    }
-  }
-
-  GATKPileupTraverse(GATKPileupTraverse&& rhs) {
-    read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
-    reader_ = rhs.reader_;
-    std::swap(buffer_list_, rhs.buffer_list_);
-    std::swap(downsampler_, rhs.downsampler_);
-  }
-
-  GATKPileupTraverse& operator=(GATKPileupTraverse&& rhs) {
-    if (this != &rhs) return *this;
-
-    read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
-    reader_ = rhs.reader_;
-    std::swap(buffer_list_, rhs.buffer_list_);
-    std::swap(downsampler_, rhs.downsampler_);
-    return *this;
-  }
-
-
-  bool HasNext();
-  ReadBackedPileup& Next();
-  // the same as Next
-  const ReadBackedPileup& CurrentPileup() const {
-    return *read_backed_pileup_;
-  }
-
-  void GetNext() {
-    HasNext();
-  }
-
-  ~GATKPileupTraverse() {
-    int idx = 0;
-    while (!buffer_list_.empty()) {
-      // free
-      //bam_destroy1(buffer_list_.front()->read);
-      delete buffer_list_.front();
-      buffer_list_.pop_front();
-    }
-    FreeReadBackedPileup();
-  }
-
-
-
- private:
-  void FreeReadBackedPileup() const {
-    for (int idx = 0; read_backed_pileup_ &&
-         idx < read_backed_pileup_->Size(); idx++) {
-      ::free((*read_backed_pileup_)[idx].GetRawPileupElement());
-    }
-  }
-
-  bool GetNextFilteredRead() {
-    easehts::SAMBAMRecord record;
-    while (reader_->HasNext(&record)) {
-      if (record.GetReadUnmappedFlag() ||
-          record.GetAlignmentStart() == SAMBAMRecord::NO_ALIGNMENT_START ||
-          record.GetNotPrimaryAlignmentFlag() ||
-          record.GetDuplicateReadFlag() ||
-          record.GetReadFailsVendorQualityCheckFlag()) {
-        // read next
-      } else {
-        // FIXME bug design, should set record to null, otherwise will delete the
-        // memory
-        read_ = record.GetRawRecord();
-        record.SetRawRecord(nullptr);
-        return true;
-      }
-    }
-
-    is_eof_ = true;
-    return false;
-  }
-
-
-  GenomeLoc interval_;
-  BAMIndexReader* reader_;
-  bam1_t* read_;
-
-  // traverse variables
-  int cur_coordianate_;
-  std::list<PileupTracker*> buffer_list_;
-  std::unique_ptr<ReadBackedPileup> read_backed_pileup_;
-  PileupTracker* cur_tracker_;
-  bool is_eof_ = false;
-
-  std::unique_ptr<LevelingDownsampler> downsampler_;
-
-};
+//class GATKPileupTraverse : public NonCopyable {
+// public:
+//  GATKPileupTraverse(BAMIndexReader* reader,
+//                     const GenomeLoc& traverse_interval,
+//                     bool is_downsampling=true,
+//                     int to_coverage = 1000)
+//  : interval_(traverse_interval),
+//    reader_(reader) {
+//    reader_->SetRegion(interval_.GetContigId(), interval_.GetStart(),
+//                      interval_.GetStop());
+//
+//    read_backed_pileup_.reset(new ReadBackedPileup());
+//    cur_coordianate_ = interval_.GetStart();
+//    if (!GetNextFilteredRead()) {
+//      is_eof_ = true;
+//      cur_tracker_ = nullptr;
+//    } else {
+//      cur_tracker_ = new PileupTracker(read_);
+//    }
+//    if (is_downsampling) {
+//      downsampler_.reset(new LevelingDownsampler(to_coverage));
+//    } else {
+//      downsampler_.reset(nullptr);
+//    }
+//  }
+//
+//  GATKPileupTraverse(GATKPileupTraverse&& rhs) {
+//    read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
+//    reader_ = rhs.reader_;
+//    std::swap(buffer_list_, rhs.buffer_list_);
+//    std::swap(downsampler_, rhs.downsampler_);
+//  }
+//
+//  GATKPileupTraverse& operator=(GATKPileupTraverse&& rhs) {
+//    if (this != &rhs) return *this;
+//
+//    read_backed_pileup_.reset(rhs.read_backed_pileup_.release());
+//    reader_ = rhs.reader_;
+//    std::swap(buffer_list_, rhs.buffer_list_);
+//    std::swap(downsampler_, rhs.downsampler_);
+//    return *this;
+//  }
+//
+//
+//  bool HasNext();
+//  ReadBackedPileup& Next();
+//  // the same as Next
+//  const ReadBackedPileup& CurrentPileup() const {
+//    return *read_backed_pileup_;
+//  }
+//
+//  void GetNext() {
+//    HasNext();
+//  }
+//
+//  ~GATKPileupTraverse() {
+//    int idx = 0;
+//    while (!buffer_list_.empty()) {
+//      // free
+//      //bam_destroy1(buffer_list_.front()->read);
+//      delete buffer_list_.front();
+//      buffer_list_.pop_front();
+//    }
+//    FreeReadBackedPileup();
+//  }
+//
+//
+//
+// private:
+//  void FreeReadBackedPileup() const {
+//    for (int idx = 0; read_backed_pileup_ &&
+//         idx < read_backed_pileup_->Size(); idx++) {
+//      ::free((*read_backed_pileup_)[idx].GetRawPileupElement());
+//    }
+//  }
+//
+//  bool GetNextFilteredRead() {
+//    easehts::SAMBAMRecord record;
+//    while (reader_->HasNext(&record)) {
+//      if (record.GetReadUnmappedFlag() ||
+//          record.GetAlignmentStart() == SAMBAMRecord::NO_ALIGNMENT_START ||
+//          record.GetNotPrimaryAlignmentFlag() ||
+//          record.GetDuplicateReadFlag() ||
+//          record.GetReadFailsVendorQualityCheckFlag()) {
+//        // read next
+//      } else {
+//        // FIXME bug design, should set record to null, otherwise will delete the
+//        // memory
+//        read_ = record.GetRawRecord();
+//        record.SetRawRecord(nullptr);
+//        return true;
+//      }
+//    }
+//
+//    is_eof_ = true;
+//    return false;
+//  }
+//
+//
+//  GenomeLoc interval_;
+//  BAMIndexReader* reader_;
+//  bam1_t* read_;
+//
+//  // traverse variables
+//  int cur_coordianate_;
+//  std::list<PileupTracker*> buffer_list_;
+//  std::unique_ptr<ReadBackedPileup> read_backed_pileup_;
+//  PileupTracker* cur_tracker_;
+//  bool is_eof_ = false;
+//
+//  std::unique_ptr<LevelingDownsampler> downsampler_;
+//
+//};
 
 
 /**

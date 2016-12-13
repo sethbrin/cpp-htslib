@@ -8,7 +8,7 @@
 #include <easehts/genome_loc.h>
 #include <easehts/noncopyable.h>
 #include <easehts/sam_bam_record.h>
-#include <easehts/pileup.h>
+#include <easehts/gatk/pileup.h>
 
 #include <array>
 #include <cmath>
@@ -19,10 +19,11 @@ namespace mutect {
 class SequenceUtils : public easehts::NonCopyable {
  public:
 
-  static bool IsReadHeavilySoftClipped(bam1_t* b, float threshold) {
+  static bool IsReadHeavilySoftClipped(easehts::SAMBAMRecord* b, float threshold) {
     int total = 0;
     int clipped = 0;
-    std::vector<easehts::CigarElement> cigars = easehts::SAMBAMRecord::ParseRawCigar(b);
+    const std::vector<easehts::CigarElement>& cigars =
+      b->GetCigar();
 
     for (const auto& ce : cigars) {
       total += ce.GetLength();
@@ -35,8 +36,8 @@ class SequenceUtils : public easehts::NonCopyable {
   }
 
   static std::array<int, 4> GetStrandContingencyTable(
-      const easehts::ReadBackedPileup& forward_pileup,
-      const easehts::ReadBackedPileup& reverse_pileup,
+      const easehts::gatk::ReadBackedPileup& forward_pileup,
+      const easehts::gatk::ReadBackedPileup& reverse_pileup,
       char ref, char alt) {
     // Construct a 2x2 contingency table of
     //            forward     reverse
@@ -57,19 +58,19 @@ class SequenceUtils : public easehts::NonCopyable {
   }
 
   static std::vector<int> GetOffsetsInRead(
-      const easehts::ReadBackedPileup& pileup,
+      const easehts::gatk::ReadBackedPileup& pileup,
       const easehts::GenomeLoc& location,
       bool use_forward_offsets) {
     std::vector<int> positions;
     positions.reserve(pileup.Size());
 
     for (int idx=0; idx<pileup.Size(); idx++) {
-      const easehts::PileupElement& p = pileup[idx];
+      const easehts::gatk::PileupElement* p = pileup[idx];
       int position = location.GetStart();
       if (use_forward_offsets) {
-        position -= easehts::SAMBAMRecord::GetAlignmentStart(p.GetRead());
+        position -= p->GetRead()->GetAlignmentStart();
       } else {
-        position -= easehts::SAMBAMRecord::GetAlignmentEnd(p.GetRead());
+        position -= p->GetRead()->GetAlignmentEnd();
       }
       positions.push_back(std::abs(position));
     }
@@ -77,13 +78,13 @@ class SequenceUtils : public easehts::NonCopyable {
   }
 
   static std::vector<int> GetForwardOffsetsInRead(
-      const easehts::ReadBackedPileup& pileup,
+      const easehts::gatk::ReadBackedPileup& pileup,
       const easehts::GenomeLoc& location) {
     return GetOffsetsInRead(pileup, location, true);
   }
 
   static std::vector<int> GetReverseOffsetsInRead(
-      const easehts::ReadBackedPileup& pileup,
+      const easehts::gatk::ReadBackedPileup& pileup,
       const easehts::GenomeLoc& location) {
     return GetOffsetsInRead(pileup, location, false);
   }

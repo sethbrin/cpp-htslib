@@ -124,7 +124,8 @@ TEST(BAMIndexReaderTest, BamRecord) {
   reader.AddRegion("chr2:236164650-236164650");
   SAMBAMRecord record;
   if (reader.HasNext(&record)) {
-    EXPECT_STREQ(record.GetQueryName(), "5934311");
-    EXPECT_STREQ(record.GetSequence().c_str(), "CTTGAACTCCTGGACTCAGGTGATGCATCCGCCTCAGCCTCCCAAACTGTT");
+    EXPECT_STREQ(record.GetQueryName().c_str(), "5934311");
+    EXPECT_STREQ(record.GetSequence().c_str(),
+                 "CTTGAACTCCTGGACTCAGGTGATGCATCCGCCTCAGCCTCCCAAACTGTT");
   }
 }

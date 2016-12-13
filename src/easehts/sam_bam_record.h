@@ -98,6 +98,7 @@ class SAMBAMRecord : public NonCopyable {
     } else {
       raw_record_ = nullptr;
     }
+    alignment_end_ = kUninitializedCachedIntValue;
   }
 
   SAMBAMRecord(SAMBAMRecord&& rhs)
@@ -136,7 +137,7 @@ class SAMBAMRecord : public NonCopyable {
   @param  b  pointer to an alignment
   @return    boolean true if query is on the reverse strand
   */
-  bool IsReverse() {
+  bool IsReverse() const {
     return bam_is_rev(raw_record_);
   }
 
@@ -149,7 +150,7 @@ class SAMBAMRecord : public NonCopyable {
    @param  b  pointer to an alignment
    @return    boolean true if query's mate on the reverse strand
    */
-  bool IsMateReverse() {
+  bool IsMateReverse() const {
     return bam_is_mrev(raw_record_);
   }
 
@@ -162,8 +163,11 @@ class SAMBAMRecord : public NonCopyable {
    @param  b  pointer to an alignment
    @return    pointer to the name string, null terminated
    */
-  const char* GetQueryName() {
-    return bam_get_qname(raw_record_);
+  const std::string& GetQueryName() const {
+    if (read_name_.empty()) {
+      read_name_ = bam_get_qname(raw_record_);
+    }
+    return read_name_;
   }
 
   static const char* GetQueryName(bam1_t* b) {
@@ -196,7 +200,7 @@ class SAMBAMRecord : public NonCopyable {
     return b->core.l_qseq;
   }
 
-  int GetInferredInsertSize() {
+  int GetInferredInsertSize() const {
     return raw_record_->core.isize;
   }
 
@@ -204,7 +208,7 @@ class SAMBAMRecord : public NonCopyable {
     return b->core.isize;
   }
 
-  std::string GetSequence() {
+  const std::string& GetSequence() {
     if (cached_sequence_.empty()) {
       cached_sequence_.reserve(raw_record_->core.l_qseq);
       const uint8_t* seq = GetRawSequence();
@@ -227,6 +231,9 @@ class SAMBAMRecord : public NonCopyable {
 
   static char GetSequenceAt(bam1_t* b, size_t idx) {
     return utils::SAMUtils::GetSequenceBaseChar(bam_get_seq(b), idx);
+  }
+  char GetSequenceAt(size_t idx) {
+    return utils::SAMUtils::GetSequenceBaseChar(bam_get_seq(raw_record_), idx);
   }
 
   /*! @function
@@ -285,21 +292,21 @@ class SAMBAMRecord : public NonCopyable {
   /**
    * the query sequence itself is unmapped.
    */
-  bool GetReadUnmappedFlag() {
+  bool GetReadUnmappedFlag() const {
     return (raw_record_->core.flag & SAMFlag::READ_UNMAPPED) != 0;
   }
   static bool GetReadUnmappedFlag(bam1_t* b) {
     return (b->core.flag & SAMFlag::READ_UNMAPPED) != 0;
   }
 
-  bool GetReadPairedFlag() {
+  bool GetReadPairedFlag() const {
     return (raw_record_->core.flag & SAMFlag::READ_PAIRED) != 0;
   }
   static bool GetReadPairedFlag(bam1_t* b) {
     return (b->core.flag & SAMFlag::READ_PAIRED) != 0;
   }
 
-  bool GetMateUnmappedFlag() {
+  bool GetMateUnmappedFlag() const {
     return (raw_record_->core.flag & SAMFlag::MATE_UNMAPPED) != 0;
   }
   static bool GetMateUnmappedFlag(bam1_t* b) {
@@ -309,7 +316,7 @@ class SAMBAMRecord : public NonCopyable {
   /**
    * the alignment is not primary (a read having split hits may have multiple primary alignment records).
    */
-  bool GetNotPrimaryAlignmentFlag() {
+  bool GetNotPrimaryAlignmentFlag() const {
     return (raw_record_->core.flag & SAMFlag::NOT_PRIMARY_ALIGNMENT) != 0;
   }
   static bool GetNotPrimaryAlignmentFlag(bam1_t* b) {
@@ -319,14 +326,14 @@ class SAMBAMRecord : public NonCopyable {
   /**
    * strand of the query(false for forward; true for reverse strand)
    */
-  bool GetReadNegativeStrandFlag() {
+  bool GetReadNegativeStrandFlag() const {
     return (raw_record_->core.flag & SAMFlag::READ_REVERSE_STRAND) != 0;
   }
   static bool GetReadNegativeStrandFlag(bam1_t* b) {
     return (b->core.flag & SAMFlag::READ_REVERSE_STRAND) != 0;
   }
 
-  bool GetMateNegativeStrandFlag() {
+  bool GetMateNegativeStrandFlag() const {
     return (raw_record_->core.flag & SAMFlag::MATE_REVERSE_STRAND) != 0;
   }
   static bool GetMateNegativeStrandFlag(bam1_t* b) {
@@ -336,7 +343,7 @@ class SAMBAMRecord : public NonCopyable {
   /**
    * the read is either a PCR duplicate or an optical duplicate.
    */
-  bool GetDuplicateReadFlag() {
+  bool GetDuplicateReadFlag() const {
     return (raw_record_->core.flag & SAMFlag::DUPLICATE_READ) != 0;
   }
   static bool GetDuplicateReadFlag(bam1_t* b) {
@@ -346,7 +353,7 @@ class SAMBAMRecord : public NonCopyable {
   /**
    * the read fails platform/vendor quality checks.
    */
-  bool GetReadFailsVendorQualityCheckFlag() {
+  bool GetReadFailsVendorQualityCheckFlag() const {
     return (raw_record_->core.flag & SAMFlag::READ_FAILS_VENDOR_QUALITY_CHECK) != 0;
   }
   static bool GetReadFailsVendorQualityCheckFlag(bam1_t* b) {
@@ -356,23 +363,42 @@ class SAMBAMRecord : public NonCopyable {
   /**
    * @return 0-based inclusive leftmost position of the clipped sequence, or 0 if there is no position.
    */
-  int GetAlignmentStart() {
+  int GetAlignmentStart() const {
     return raw_record_->core.pos;
   }
   static int GetAlignmentStart(bam1_t* b) {
     return b->core.pos;
   }
 
-  int GetMateAlignmentStart() {
+  int GetMateAlignmentStart() const {
     return raw_record_->core.mpos;
   }
   static int GetMateAlignmentStart(bam1_t* b) {
     return b->core.mpos;
   }
 
-  int GetAlignmentEnd() {
-    return GetAlignmentEnd(raw_record_);
+  int GetAlignmentEnd() const {
+    if (alignment_end_ != kUninitializedCachedIntValue) {
+      return alignment_end_;
+    }
+    const std::vector<CigarElement>& cigars = GetCigar();
+    alignment_end_ = raw_record_->core.pos - 1;
+    for (auto& cigar : cigars) {
+      switch(cigar.GetOperator()) {
+        case CigarElement::MATCH:
+        case CigarElement::DELETION:
+        case CigarElement::SKIPPED_REGION:
+        case CigarElement::EQUAL:
+        case CigarElement::MISMATCH:
+          alignment_end_ += cigar.GetLength();
+          break;
+        default:
+          break;
+      }
+    }
+    return alignment_end_;
   }
+
   static int GetAlignmentEnd(bam1_t* b) {
     std::vector<CigarElement> cigars = ParseRawCigar(b);
     int len = b->core.pos - 1;
@@ -393,28 +419,28 @@ class SAMBAMRecord : public NonCopyable {
   }
 
 
-  int GetMapQuality() {
+  int GetMapQuality() const {
     return raw_record_->core.qual;
   }
   static int GetMapQuality(bam1_t* b) {
     return b->core.qual;
   }
 
-  uint32_t* GetRawCigar() {
+  uint32_t* GetRawCigar() const {
     return bam_get_cigar(raw_record_);
   }
   static uint32_t* GetRawCigar(bam1_t* b) {
     return bam_get_cigar(b);
   }
 
-  int GetCigarLength() {
+  int GetCigarLength() const {
     return raw_record_->core.n_cigar;
   }
   static int GetCigarLength(bam1_t* b) {
     return b->core.n_cigar;
   }
 
-  const std::vector<CigarElement>& GetCigar() {
+  const std::vector<CigarElement>& GetCigar() const {
     if (cached_cigars_.empty()) {
       cached_cigars_ = ParseRawCigar(raw_record_);
     }
@@ -432,12 +458,13 @@ class SAMBAMRecord : public NonCopyable {
   }
 
   std::string GetCigarString() {
-    std::vector<CigarElement> elements = ParseRawCigar(raw_record_);
-    std::string res;
-    for (const CigarElement& element : elements) {
-      res += element.ToString();
+    if (cached_cigar_str_.empty()) {
+      const std::vector<CigarElement>& elements = GetCigar();
+      for (const CigarElement& element : elements) {
+        cached_cigar_str_ += element.ToString();
+      }
     }
-    return res;
+    return cached_cigar_str_;
   }
 
   static std::string GetCigarString(bam1_t* b) {
@@ -468,6 +495,20 @@ class SAMBAMRecord : public NonCopyable {
         GetMateAlignmentStart(read) + GetInferredInsertSize(read);
     }
   }
+
+  static bool HasWellDefinedFragmentSize(const SAMBAMRecord& read) {
+    if (read.GetInferredInsertSize() == 0) return false;
+    if (!read.GetReadPairedFlag()) return false;
+    if (read.GetReadUnmappedFlag() || read.GetMateUnmappedFlag()) return false;
+    if (read.GetReadNegativeStrandFlag() == read.GetMateNegativeStrandFlag()) return false;
+    if (read.GetReadNegativeStrandFlag()) {
+      return read.GetAlignmentEnd() > read.GetMateAlignmentStart();
+    } else {
+      return read.GetAlignmentStart() <=
+        read.GetMateAlignmentStart() + read.GetInferredInsertSize();
+    }
+  }
+
 
    /**
     * Finds the adaptor boundary around the read and returns the first base inside the adaptor that is closest to
@@ -505,6 +546,17 @@ class SAMBAMRecord : public NonCopyable {
         std::abs(GetInferredInsertSize(read)) + 1;
     }
   }
+  static int GetAdaptorBoundary(const SAMBAMRecord& read) {
+    if (!HasWellDefinedFragmentSize(read)) {
+      return CANNOT_COMPUTE_ADAPTOR_BOUNDARY;
+    } else if(read.GetReadNegativeStrandFlag()) {
+      return read.GetMateAlignmentStart() - 1;
+    } else {
+      return read.GetAlignmentStart() +
+        std::abs(read.GetInferredInsertSize()) + 1;
+    }
+  }
+
 
   /**
    * is this base inside the adaptor of the read?
@@ -529,19 +581,33 @@ class SAMBAMRecord : public NonCopyable {
     return GetReadNegativeStrandFlag(read) ?
       base_pos <= adaptor_boundary : base_pos >= adaptor_boundary;
   }
+  static bool IsBaseInsideAdaptor(const SAMBAMRecord& read, int base_pos) {
+    const int adaptor_boundary = GetAdaptorBoundary(read);
+    if (adaptor_boundary == CANNOT_COMPUTE_ADAPTOR_BOUNDARY ||
+        read.GetInferredInsertSize() > DEFAULT_ADAPTOR_SIZE) {
+      return false;
+    }
+    return read.GetReadNegativeStrandFlag() ?
+      base_pos <= adaptor_boundary : base_pos >= adaptor_boundary;
+  }
+
 
  public:
   enum {
     CANNOT_COMPUTE_ADAPTOR_BOUNDARY = INT_MIN,
-    DEFAULT_ADAPTOR_SIZE = 100
+    DEFAULT_ADAPTOR_SIZE = 100,
   };
 
  private:
   bam1_t* raw_record_;
+  static const int kUninitializedCachedIntValue;
 
   // once decode the sequence field, it cached
-  std::string cached_sequence_;
-  std::vector<CigarElement> cached_cigars_;
+  mutable std::string cached_sequence_;
+  mutable std::vector<CigarElement> cached_cigars_;
+  mutable std::string cached_cigar_str_;
+  mutable int alignment_end_;
+  mutable std::string read_name_;
 };
 
 } // easehts

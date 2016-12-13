@@ -8,5 +8,7 @@ namespace ncic {
 
 namespace easehts {
 
+const int SAMBAMRecord::kUninitializedCachedIntValue = -1;
+
 } // easehts
 } // ncic

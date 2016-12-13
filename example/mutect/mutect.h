@@ -16,6 +16,7 @@
 #include <easehts/sam_bam_reader.h>
 #include <easehts/sam_bam_record.h>
 #include <easehts/reference_sequence.h>
+#include <easehts/gatk/pileup.h>
 
 #include <atomic>
 #include <algorithm>
@@ -101,10 +102,11 @@ class Worker : public easehts::NonCopyable {
     easehts::BAMIndexReader* reader;
   } InputData;
 
-  void PrepareResult(const easehts::GenomeLoc& location,
-                     const uint64_t min_contig_pos,
-                     const std::vector<easehts::GATKPileupTraverse>& tumor_traverses,
-                     const std::vector<easehts::GATKPileupTraverse>& normal_traverses);
+  void PrepareResult(
+      const easehts::GenomeLoc& location,
+      const uint64_t min_contig_pos,
+      const std::vector<easehts::gatk::GATKPileupTraverse>& tumor_traverses,
+      const std::vector<easehts::gatk::GATKPileupTraverse>& normal_traverses);
 
   void PrepareCondidate(
       const char up_ref,
@@ -116,9 +118,9 @@ class Worker : public easehts::NonCopyable {
       const easehts::ReferenceSequence& ref_bases,
       const easehts::GenomeLoc& window,
       const easehts::GenomeLoc& location,
-      const easehts::ReadBackedPileup pileup,
+      const easehts::gatk::ReadBackedPileup pileup,
       bool filter_mate_rescue_reads,
-      easehts::ReadBackedPileup* pPileup);
+      easehts::gatk::ReadBackedPileup* pPileup);
 
   void PerformRejection(CandidateMutation& candidate);
 

@@ -5,24 +5,17 @@ project(easehtslib)
 
 set(CXX_FLAGS
         -g
-        -O2
+        -O3
         #-pg
-        # -DVALGRIND
-        # -DMUDUO_STD_STRING
-        -DCHECK_PTHREAD_RETURN_VALUE
-        -D_FILE_OFFSET_BITS=64
         -fpermissive
         #-Wall
         #-Wextra
         #-Werror
-        #-Wno-unused-parameter
-        #-Woverloaded-virtual
-        #-Wpointer-arith
-        #-Wwrite-strings
-        #-march=native
-        # -MMD
-        #-std=c++0x
-        #-fno-elide-constructors
+        -Wno-unused-parameter
+        -Woverloaded-virtual
+        -Wpointer-arith
+        -Wwrite-strings
+        -fno-elide-constructors
         -std=c++11
         -rdynamic
         )
@@ -30,6 +23,7 @@ set(CXX_FLAGS
 option(test "Build all tests." ON) # Makes boolean 'test' available.
 option(EASEHTS_BUILD_THIRDPARTY_GTEST
   "Use gtest installation in `thirdparty/gtest` by default if available" ON)
+option(USE_TCMALLOC "use Tcmalloc." ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -finline-limit=1000 -DNDEBUG")
@@ -39,12 +33,17 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 
+if (USE_TCMALLOC)
+  link_libraries(tcmalloc)
+endif()
 
-find_package(ZLIB)
+#find_package(ZLIB)
 
 set(HTS_LIB "${PROJECT_SOURCE_DIR}/thirdparty/htslib/")
-
 include_directories(${HTS_LIB})
+
+find_package(Tcmalloc)
+
 
 link_libraries(
         pthread

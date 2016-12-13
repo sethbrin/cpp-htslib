@@ -1,6 +1,6 @@
 #include "locus_read_pile.h"
 
-#include <easehts/pileup.h>
+#include <easehts/gatk/pileup.h>
 #include <easehts/base_utils.h>
 #include <easehts/diploid_genotype.h>
 
@@ -13,9 +13,11 @@ namespace mutect {
 
 const int LocusReadPile::kGapEventProximity = 5; // a 11bp window
 
-LocusReadPile::LocusReadPile(SampleType sample_type, char ref_base, int min_quality_score,
-                             int min_qsum_quality_score, bool allow_mapq0_for_qual_sum,
-                             bool retain_overlap_mismatches, bool track_base_quality_socres)
+LocusReadPile::LocusReadPile(
+    SampleType sample_type, char ref_base, int min_quality_score,
+    int min_qsum_quality_score, bool allow_mapq0_for_qual_sum,
+    bool retain_overlap_mismatches, bool track_base_quality_socres)
+
   : sample_type_(sample_type),
     ref_base_(ref_base),
     min_quality_score_(min_quality_score),
@@ -30,16 +32,17 @@ LocusReadPile::LocusReadPile(SampleType sample_type, char ref_base, int min_qual
 }
 
 
-void LocusReadPile::AddPileupElement(const easehts::ReadBackedPileup& read_backed_pileup) {
+void LocusReadPile::AddPileupElement(
+    const easehts::gatk::ReadBackedPileup& read_backed_pileup) {
   for (size_t i=0; i < read_backed_pileup.Size(); i++) {
-    const char base = read_backed_pileup[i].GetBase();
+    const char base = read_backed_pileup[i]->GetBase();
     if (base == 'N' || base == 'n') continue;
     pileup_.AddElement(read_backed_pileup[i]);
   }
 }
 
 void LocusReadPile::InitPileups() {
-  easehts::ReadBackedPileup no_overlap_pileup;
+  easehts::gatk::ReadBackedPileup no_overlap_pileup;
   pileup_.GetOverlappingFragmentFilteredPileup(&no_overlap_pileup,
                                                ref_base_, retain_overlap_mismatches_);
 
@@ -48,12 +51,12 @@ void LocusReadPile::InitPileups() {
                                         &quality_score_filter_pileup_);
   quality_score_filter_pileup_.GetPileupWithoutMappingQualityZeroReads(&final_pileup_);
 
-  easehts::ReadBackedPileup tmp_pileup;
+  easehts::gatk::ReadBackedPileup tmp_pileup;
 
   // GetPileupWithoutDeletions && GetBaseFilteredPileup
-  auto pred = [this](easehts::PileupElement element)->bool {
-    return !element.IsDeletion() &&
-      (element.IsDeletion() || element.GetQual() >= this->min_quality_score_);
+  auto pred = [this](easehts::gatk::PileupElement* element)->bool {
+    return !element->IsDeletion() &&
+      (element->IsDeletion() || element->GetQual() >= this->min_quality_score_);
   };
   pileup_.GetPileupByFilter(&tmp_pileup, pred);
 
@@ -61,12 +64,12 @@ void LocusReadPile::InitPileups() {
   tmp_pileup.GetNegativeStrandPileup(&final_pileup_negative_strand_);
 
   for (size_t idx=0; idx<quality_score_filter_pileup_.Size(); idx++) {
-    const easehts::PileupElement& p = quality_score_filter_pileup_[idx];
-    if (p.GetMappingQuality() == 0 &&
+    const easehts::gatk::PileupElement* p = quality_score_filter_pileup_[idx];
+    if (p->GetMappingQuality() == 0 &&
         !allow_mapq0_for_qual_sum_) continue;
-    if (p.GetQual() <= min_qsum_quality_score_) continue;
-    if (p.GetQual() > min_qsum_quality_score_) {
-      quality_sums_.IncrementSum(p.GetBase(), 1, p.GetQual());
+    if (p->GetQual() <= min_qsum_quality_score_) continue;
+    if (p->GetQual() > min_qsum_quality_score_) {
+      quality_sums_.IncrementSum(p->GetBase(), 1, p->GetQual());
     }
   }
 
@@ -74,23 +77,23 @@ void LocusReadPile::InitPileups() {
   // Calculate how many are at this site and how many insertion
   // are within INSERTION_PROXIMITY bp
   for (size_t idx=0; idx<no_overlap_pileup.Size(); idx++) {
-    const easehts::PileupElement& p = no_overlap_pileup[idx];
-    if (p.GetBase() == easehts::PileupElement::kDeletionBase) {
+    const easehts::gatk::PileupElement* p = no_overlap_pileup[idx];
+    if (p->GetBase() == easehts::gatk::PileupElement::kDeletionBase) {
       deletions_count_++;
     } else {
       // check for nearby events
-      std::vector<easehts::CigarElement> cigars =
-        easehts::SAMBAMRecord::ParseRawCigar(p.GetRead());
+      const std::vector<easehts::CigarElement>& cigars =
+        p->GetRead()->GetCigar();
       int event_start = 0;
       for (const easehts::CigarElement& cigar : cigars) {
         if (cigar.GetOperator() == easehts::CigarElement::INSERTION &&
-            std::abs(event_start - p.GetOffset()) <= kGapEventProximity) {
+            std::abs(event_start - p->GetOffset()) <= kGapEventProximity) {
           insertion_count_ ++;
           break;
         }
 
         if (cigar.GetOperator() == easehts::CigarElement::DELETION &&
-            std::abs(event_start - p.GetOffset()) <= kGapEventProximity) {
+            std::abs(event_start - p->GetOffset()) <= kGapEventProximity) {
           deletions_count_ ++;
           break;
         }
@@ -107,7 +110,7 @@ double LocusReadPile::EstimateAlleleFraction(char ref, char alt) const {
 }
 
 double LocusReadPile::EstimateAlleleFraction(
-    const easehts::ReadBackedPileup& read_backed_pileup,
+    const easehts::gatk::ReadBackedPileup& read_backed_pileup,
     char ref, char alt) {
   std::array<int, 4> counts = read_backed_pileup.GetBaseCounts();
   int ref_count = counts[easehts::BaseUtils::SimpleBaseToBaseIndex(ref)];
@@ -119,14 +122,14 @@ double LocusReadPile::EstimateAlleleFraction(
 }
 
 double LocusReadPile::CalculateLogLikelihood(
-    const easehts::ReadBackedPileup& read_backed_pileup,
+    const easehts::gatk::ReadBackedPileup& read_backed_pileup,
     char ref, char alt, double f) {
   double ll = 0;
   for (int i = 0; i < read_backed_pileup.Size(); i++) {
-    const easehts::PileupElement& element = read_backed_pileup[i];
+    const easehts::gatk::PileupElement* element = read_backed_pileup[i];
 
-    char base = element.GetBase();
-    char qual = element.GetQual();
+    char base = element->GetBase();
+    char qual = element->GetQual();
 
     double e = std::pow(10, (qual / -10.0));
 
@@ -220,12 +223,12 @@ double LocusReadPile::GetAltVsRef(
 }
 
 VariableAllelicRatioGenotypeLikelihoods LocusReadPile::CalculateLikelihoods(
-    const easehts::ReadBackedPileup& pileup) const {
+    const easehts::gatk::ReadBackedPileup& pileup) const {
   return CalculateLikelihoods(0.5, pileup);
 }
 
 VariableAllelicRatioGenotypeLikelihoods LocusReadPile::CalculateLikelihoods(
-    double alpha, const easehts::ReadBackedPileup& pileup) const {
+    double alpha, const easehts::gatk::ReadBackedPileup& pileup) const {
 
   VariableAllelicRatioGenotypeLikelihoods likelihoods(ref_base_, alpha);
   // we have to do this rather than pass in the ReadBackedPileup because that call

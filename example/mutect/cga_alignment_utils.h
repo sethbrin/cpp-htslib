@@ -5,7 +5,7 @@
 #define MUTECT_CGA_ALIGNMENT_UTILS_H_
 
 #include <easehts/noncopyable.h>
-#include <easehts/pileup.h>
+#include <easehts/gatk/pileup.h>
 #include <easehts/sam_bam_record.h>
 #include <easehts/reference_sequence.h>
 
@@ -29,7 +29,7 @@ class CGAAlignmentUtils : public easehts::NonCopyable {
    */
   static int MismatchesInRefWindow(
       const easehts::ReferenceSequence& ref_bases,
-      const easehts::PileupElement& p,
+      const easehts::gatk::PileupElement* p,
       const easehts::GenomeLoc& location,
       const easehts::GenomeLoc& window,
       bool ignore_target_site,
@@ -38,12 +38,14 @@ class CGAAlignmentUtils : public easehts::NonCopyable {
 
     int window_start = window.GetStart();
     int window_stop = window.GetStop();
-    std::string read_bases = easehts::SAMBAMRecord::GetSequence(p.GetRead());
-    std::string read_qualities = easehts::SAMBAMRecord::GetQuality(p.GetRead());
-    std::vector<easehts::CigarElement> cigars = easehts::SAMBAMRecord::ParseRawCigar(p.GetRead());
+    easehts::SAMBAMRecord* read = p->GetRead();
+    std::string read_bases = read->GetSequence();
+    std::string read_qualities = read->GetQuality();
+    const std::vector<easehts::CigarElement>& cigars =
+      read->GetCigar();
 
     int read_index = 0;
-    int current_pos = easehts::SAMBAMRecord::GetAlignmentStart(p.GetRead());
+    int current_pos = read->GetAlignmentStart();
     int ref_index = std::max(0, current_pos - window_start);
 
     for (const auto& ce : cigars) {

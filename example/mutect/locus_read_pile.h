@@ -9,7 +9,7 @@
 #include "variable_allelic_ratio_genotype_likelyhoods.h"
 
 #include <easehts/noncopyable.h>
-#include <easehts/pileup.h>
+#include <easehts/gatk/pileup.h>
 
 #include <vector>
 #include <array>
@@ -32,7 +32,7 @@ class LocusReadPile : public easehts::NonCopyable {
     : LocusReadPile(sample_type, ref_base, min_quality_score,
                     min_qsum_quality_score, false, false, track_base_quality_socres) {}
 
-  void AddPileupElement(const easehts::ReadBackedPileup& read_backed_pileup);
+  void AddPileupElement(const easehts::gatk::ReadBackedPileup& read_backed_pileup);
 
   // init the pileups
   void InitPileups();
@@ -43,7 +43,7 @@ class LocusReadPile : public easehts::NonCopyable {
 
   double EstimateAlleleFraction(char ref, char alt) const;
 
-  double CalculateAltVsRefLOD(const easehts::ReadBackedPileup& pileup,
+  double CalculateAltVsRefLOD(const easehts::gatk::ReadBackedPileup& pileup,
                               char alt, double alternate, double reference) const {
     return CalculateAltVsRefLOD(pileup, ref_base_, alt, alternate, reference);
   }
@@ -52,7 +52,7 @@ class LocusReadPile : public easehts::NonCopyable {
     return CalculateAltVsRefLOD(final_pileup_, alt, alternate, reference);
   }
 
-  double CalculateAltVsRefLOD(const easehts::ReadBackedPileup& pileup, char ref,
+  double CalculateAltVsRefLOD(const easehts::gatk::ReadBackedPileup& pileup, char ref,
                               char alt, double alternate, double reference) const {
     double lod_alt = LocusReadPile::CalculateLogLikelihood(pileup, ref, alt, alternate);
     double lod_ref = LocusReadPile::CalculateLogLikelihood(pileup, ref, alt, reference);
@@ -70,17 +70,17 @@ class LocusReadPile : public easehts::NonCopyable {
                      char ref, char alt_allele);
 
   VariableAllelicRatioGenotypeLikelihoods CalculateLikelihoods(
-      const easehts::ReadBackedPileup& pileup) const;
+      const easehts::gatk::ReadBackedPileup& pileup) const;
 
   VariableAllelicRatioGenotypeLikelihoods CalculateLikelihoods(
-      double alpha, const easehts::ReadBackedPileup& pileup) const;
+      double alpha, const easehts::gatk::ReadBackedPileup& pileup) const;
 
  public:
   const static int kGapEventProximity;
 
-  static double EstimateAlleleFraction(const easehts::ReadBackedPileup& read_backed_pileup,
+  static double EstimateAlleleFraction(const easehts::gatk::ReadBackedPileup& read_backed_pileup,
                                 char ref, char alt);
-  static double CalculateLogLikelihood(const easehts::ReadBackedPileup& read_backed_pileup,
+  static double CalculateLogLikelihood(const easehts::gatk::ReadBackedPileup& read_backed_pileup,
                                        char ref, char alt, double f);
 
   static std::array<double, 3> ExtractRefHemHom(
@@ -92,12 +92,12 @@ class LocusReadPile : public easehts::NonCopyable {
       char ref, char alt_allele);
 
  public:
-  easehts::ReadBackedPileup pileup_;
-  easehts::ReadBackedPileup initial_pileup_;
-  easehts::ReadBackedPileup quality_score_filter_pileup_;
-  easehts::ReadBackedPileup final_pileup_;
-  easehts::ReadBackedPileup final_pileup_positive_strand_;
-  easehts::ReadBackedPileup final_pileup_negative_strand_;
+  easehts::gatk::ReadBackedPileup pileup_;
+  easehts::gatk::ReadBackedPileup initial_pileup_;
+  easehts::gatk::ReadBackedPileup quality_score_filter_pileup_;
+  easehts::gatk::ReadBackedPileup final_pileup_;
+  easehts::gatk::ReadBackedPileup final_pileup_positive_strand_;
+  easehts::gatk::ReadBackedPileup final_pileup_negative_strand_;
 
   QualitySums quality_sums_;
 

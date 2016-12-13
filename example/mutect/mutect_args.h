@@ -49,7 +49,7 @@ class MutectArgs : public ncic::easehts::NonCopyable {
     output_file('o', "out", true, "output file"),
     vcf_file('v', "vcf", true, "output vcf file"),
     thread_cnt('t', "nthreads", false, 1, "number of threads"),
-    // notice here the default value is false, while in mutect is true
+    // NOTE here the default value is false, while in mutect is true
     downsampling(easehts::BaseOption::NO_OPTION, "downsampling", false, "the pileup downsampling")
   {
 

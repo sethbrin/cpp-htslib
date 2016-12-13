@@ -10,11 +10,15 @@ set(SOURCE_FILES
     base_utils.cpp
     diploid_SNP_genotype_likelihoods.cpp
     diploid_genotype.cpp
-    alignment_state_machine.cpp
+    gatk/alignment_state_machine.cpp
+    gatk/pileup.cpp
 )
 
 add_library(easehtslib ${SOURCE_FILES})
 target_link_libraries(easehtslib ${HTS_LIB}/libhts.a)
+include_directories(${PROJECT_SOURCE_DIR}/src/)
+
+add_subdirectory(gatk)
 
 if (test)
     link_libraries(gtest gtest_main)
@@ -24,6 +28,5 @@ if (test)
     create_test(reference_sequence_unittest)
     create_test(pileup_unittest)
     create_test(sam_bam_record_unittest)
-    create_test(alignment_state_machine_unittest)
     create_test(utils_unittest)
 endif()
