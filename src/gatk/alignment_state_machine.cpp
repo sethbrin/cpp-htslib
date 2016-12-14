@@ -126,8 +126,9 @@ bool AlignmentStateMachine::MakePileupElement(PileupElement** element) {
     return false;
   }
   uint8_t qual = read_->GetRawQuality()[read_offset_];
-  uint8_t base = utils::SAMUtils::GetSequenceBaseChar(
-        read_->GetRawSequence(), read_offset_);
+  //uint8_t base = utils::SAMUtils::GetSequenceBaseChar(
+  //      read_->GetRawSequence(), read_offset_);
+  uint8_t base = read_->GetSequence()[read_offset_];
 
   bool is_del = cigars[current_cigar_element_offset_].GetOperator()
     == CigarElement::DELETION;
