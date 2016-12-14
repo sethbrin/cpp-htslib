@@ -386,7 +386,8 @@ void Worker::PrepareCondidate(
     candidate.tumor_lodF_star = t2.CalculateAltVsRefLOD(alt_allele,
                                                         candidate.tumor_F, 0);
 
-    // TODO: clean up use of forward/reverse vs positive/negative (prefer the latter)
+    // TODO: clean up use of forward/reverse vs positive/negative
+    // (prefer the latter)
     easehts::gatk::ReadBackedPileup tmp_pileup;
 
     easehts::gatk::ReadBackedPileup forward_pileup;

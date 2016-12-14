@@ -11,6 +11,8 @@ set(CXX_FLAGS
         #-Wall
         #-Wextra
         #-Werror
+        -march=native
+        -finline-functions
         -Wno-unused-parameter
         -Woverloaded-virtual
         -Wpointer-arith
@@ -24,6 +26,7 @@ option(test "Build all tests." ON) # Makes boolean 'test' available.
 option(EASEHTS_BUILD_THIRDPARTY_GTEST
   "Use gtest installation in `thirdparty/gtest` by default if available" ON)
 option(USE_TCMALLOC "use Tcmalloc." ON)
+option(BUILD_BENCHMARK "build benchmark example." ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -finline-limit=1000 -DNDEBUG")
@@ -68,3 +71,8 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(example)
+
+if (BUILD_BENCHMARK)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/thirdparty/benchmark)
+  add_subdirectory(benchmark)
+endif()

@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 #include <memory>
+#include <unordered_map>
 
 using namespace ncic::easehts;
 
@@ -51,4 +52,41 @@ TEST(SAMBAMRecord, GetCigarString) {
   if (reader.HasNext(&record)) {
     EXPECT_EQ(record.GetCigarString(), "8M2I");
   }
+}
+
+struct record_hash {
+  size_t operator()(SAMBAMRecord* read) const {
+    return read->HashCode();
+  }
+};
+
+struct record_equal {
+  bool operator()(SAMBAMRecord* lhs,
+                  SAMBAMRecord* rhs) const {
+    return lhs->GetQueryName() == rhs->GetQueryName();
+  }
+};
+
+TEST(SAMBAMRecord, unordered_map) {
+  TEST_FILE("uncompressed.sam", filename);
+  SAMBAMTextReader reader(filename);
+
+  SAMBAMRecord record;
+
+  reader.HasNext(&record);
+  SAMBAMRecord record2 = record.Copy();
+  std::unordered_map<SAMBAMRecord*, int,
+    record_hash, record_equal> map;
+  EXPECT_EQ(map.find(&record), map.end());
+  map[&record]  = 1;
+  EXPECT_NE(map.find(&record), map.end());
+  EXPECT_EQ(map[&record], 1);
+  EXPECT_EQ(map[&record2], 1);
+  EXPECT_NE(map.find(&record2), map.end());
+  SAMBAMRecord record3;
+  reader.HasNext(&record3);
+  EXPECT_NE(map.find(&record3), map.end());
+  EXPECT_EQ(map[&record3], 1);
+  map[&record3] = 3;
+  EXPECT_NE(map.find(&record3), map.end());
 }

@@ -80,6 +80,15 @@ class PileupElement {
   int offset_;
 };
 
+#define GET_PILEUP_BY_FILTER(pileup, pred) \
+  assert(pileup->Size() == 0); \
+  int size = elements_.size(); \
+  for (int i = 0; i < elements_.size(); i++) { \
+    if (pred) { \
+      pileup->AddElement(elements_[i]); \
+    } \
+  }
+
 using PileupFilterFun = std::function<bool (PileupElement*)>;
 class ReadBackedPileup {
  public:

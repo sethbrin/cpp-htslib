@@ -25,7 +25,8 @@ class CallStatsGenerator : public easehts::NonCopyable {
 
     fp_ = fopen(file_name.c_str(), "w");
     if (fp_ == nullptr) {
-      ERROR(easehts::utils::StringFormatCStr("Can not open filename: %s", file_name.c_str()));
+      ERROR(easehts::utils::StringFormatCStr("Can not open filename: %s",
+                                             file_name.c_str()));
     }
   }
 

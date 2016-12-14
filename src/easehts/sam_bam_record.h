@@ -9,9 +9,10 @@
 #include "noncopyable.h"
 
 #include <htslib/sam.h>
-#include <string>
 #include <climits>
 #include <cmath>
+#include <functional>
+#include <string>
 
 namespace ncic {
 
@@ -99,6 +100,7 @@ class SAMBAMRecord : public NonCopyable {
       raw_record_ = nullptr;
     }
     alignment_end_ = kUninitializedCachedIntValue;
+    read_name_hashcode_ = 0;
   }
 
   SAMBAMRecord(SAMBAMRecord&& rhs)
@@ -143,6 +145,13 @@ class SAMBAMRecord : public NonCopyable {
 
   static bool IsReverse(bam1_t* b) {
     return bam_is_rev(b);
+  }
+
+  size_t HashCode() const {
+    if (read_name_hashcode_ == 0) {
+      read_name_hashcode_ = std::hash<std::string>{}(GetQueryName());
+    }
+    return read_name_hashcode_;
   }
 
   /*! @function
@@ -213,7 +222,8 @@ class SAMBAMRecord : public NonCopyable {
       cached_sequence_.reserve(raw_record_->core.l_qseq);
       const uint8_t* seq = GetRawSequence();
       for (int i = 0; i < raw_record_->core.l_qseq; i++) {
-        cached_sequence_.push_back(utils::SAMUtils::GetSequenceBaseChar(seq, i));
+        cached_sequence_.push_back(
+            utils::SAMUtils::GetSequenceBaseChar(seq, i));
       }
     }
     return cached_sequence_;
@@ -314,7 +324,8 @@ class SAMBAMRecord : public NonCopyable {
   }
 
   /**
-   * the alignment is not primary (a read having split hits may have multiple primary alignment records).
+   * the alignment is not primary (a read having split hits may have multiple
+   * primary alignment records).
    */
   bool GetNotPrimaryAlignmentFlag() const {
     return (raw_record_->core.flag & SAMFlag::NOT_PRIMARY_ALIGNMENT) != 0;
@@ -354,14 +365,16 @@ class SAMBAMRecord : public NonCopyable {
    * the read fails platform/vendor quality checks.
    */
   bool GetReadFailsVendorQualityCheckFlag() const {
-    return (raw_record_->core.flag & SAMFlag::READ_FAILS_VENDOR_QUALITY_CHECK) != 0;
+    return (raw_record_->core.flag &
+            SAMFlag::READ_FAILS_VENDOR_QUALITY_CHECK) != 0;
   }
   static bool GetReadFailsVendorQualityCheckFlag(bam1_t* b) {
     return (b->core.flag & SAMFlag::READ_FAILS_VENDOR_QUALITY_CHECK) != 0;
   }
 
   /**
-   * @return 0-based inclusive leftmost position of the clipped sequence, or 0 if there is no position.
+   * @return 0-based inclusive leftmost position of the clipped sequence,
+   * or 0 if there is no position.
    */
   int GetAlignmentStart() const {
     return raw_record_->core.pos;
@@ -487,7 +500,8 @@ class SAMBAMRecord : public NonCopyable {
     if (GetInferredInsertSize(read) == 0) return false;
     if (!GetReadPairedFlag(read)) return false;
     if (GetReadUnmappedFlag(read) || GetMateUnmappedFlag(read)) return false;
-    if (GetReadNegativeStrandFlag(read) == GetMateNegativeStrandFlag(read)) return false;
+    if (GetReadNegativeStrandFlag(read) == GetMateNegativeStrandFlag(read))
+      return false;
     if (GetReadNegativeStrandFlag(read)) {
       return GetAlignmentEnd(read) > GetMateAlignmentStart(read);
     } else {
@@ -500,7 +514,8 @@ class SAMBAMRecord : public NonCopyable {
     if (read.GetInferredInsertSize() == 0) return false;
     if (!read.GetReadPairedFlag()) return false;
     if (read.GetReadUnmappedFlag() || read.GetMateUnmappedFlag()) return false;
-    if (read.GetReadNegativeStrandFlag() == read.GetMateNegativeStrandFlag()) return false;
+    if (read.GetReadNegativeStrandFlag() == read.GetMateNegativeStrandFlag())
+      return false;
     if (read.GetReadNegativeStrandFlag()) {
       return read.GetAlignmentEnd() > read.GetMateAlignmentStart();
     } else {
@@ -511,9 +526,12 @@ class SAMBAMRecord : public NonCopyable {
 
 
    /**
-    * Finds the adaptor boundary around the read and returns the first base inside the adaptor that is closest to
-    * the read boundary. If the read is in the positive strand, this is the first base after the end of the
-    * fragment (Picard calls it 'insert'), if the read is in the negative strand, this is the first base before the
+    * Finds the adaptor boundary around the read and returns the first
+    * base inside the adaptor that is closest to
+    * the read boundary. If the read is in the positive strand,
+    * this is the first base after the end of the
+    * fragment (Picard calls it 'insert'), if the read is in the negative
+    * strand, this is the first base before the
     * beginning of the fragment.
     *
     * There are two cases we need to treat here:
@@ -530,11 +548,14 @@ class SAMBAMRecord : public NonCopyable {
     *   |---------------------->   *
     *     <----------------------|
     *
-    *   in these cases the adaptor boundary is at the start of the read plus the inferred insert size (plus one)
+    *   in these cases the adaptor boundary is at the start of the read plus
+    *   the inferred insert size (plus one)
     *
     * @param read the read being tested for the adaptor boundary
-    * @return the reference coordinate for the adaptor boundary (effectively the first base IN the adaptor, closest to the read.
-    * CANNOT_COMPUTE_ADAPTOR_BOUNDARY if the read is unmapped or the mate is mapped to another contig.
+    * @return the reference coordinate for the adaptor boundary (effectively
+    * the first base IN the adaptor, closest to the read.
+    * CANNOT_COMPUTE_ADAPTOR_BOUNDARY if the read is unmapped or the
+    * MATE_UNMAPPED is mapped to another contig.
     */
   static int GetAdaptorBoundary(bam1_t* read) {
     if (!HasWellDefinedFragmentSize(read)) {
@@ -566,10 +587,12 @@ class SAMBAMRecord : public NonCopyable {
    * 1) Read is in the negative strand => Adaptor boundary is on the left tail
    * 2) Read is in the positive strand => Adaptor boundary is on the right tail
    *
-   * Note: We return false to all reads that are UNMAPPED or have an weird big insert size (probably due to mismapping or bigger event)
+   * Note: We return false to all reads that are UNMAPPED or have an weird
+   * big insert size (probably due to mismapping or bigger event)
    *
    * @param read the read to test
-   * @param basePos base position in REFERENCE coordinates (not read coordinates)
+   * @param basePos base position in REFERENCE coordinates
+   * (not read coordinates)
    * @return whether or not the base is in the adaptor
    */
   static bool IsBaseInsideAdaptor(bam1_t* read, int base_pos) {
@@ -608,6 +631,7 @@ class SAMBAMRecord : public NonCopyable {
   mutable std::string cached_cigar_str_;
   mutable int alignment_end_;
   mutable std::string read_name_;
+  mutable size_t read_name_hashcode_;
 };
 
 } // easehts

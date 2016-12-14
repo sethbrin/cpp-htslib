@@ -26,8 +26,9 @@ void ReadBackedPileup::GetPileupByFilter(ReadBackedPileup* pPileup,
   }
 }
 
-void ReadBackedPileup::GetPileupByAndFilter(ReadBackedPileup* pPileup,
-                                            std::vector<PileupFilterFun> filters) {
+void ReadBackedPileup::GetPileupByAndFilter(
+    ReadBackedPileup* pPileup,
+    std::vector<PileupFilterFun> filters) {
   assert(pPileup->Size() == 0);
   int size = elements_.size();
   for (int i = 0; i < size; i++) {
@@ -59,8 +60,8 @@ int ReadBackedPileup::GetPileupByFilterCount(
 // FIXME here just copy to pPileup and ignore number_of_deletions_
 void ReadBackedPileup::GetPileupWithoutDeletions(ReadBackedPileup* pPileup) {
 
-  //auto pred = [](PileupElement element)->bool { return !element.IsDeletion();};
   GetPileupByFilter(pPileup, PileupFilter::IsNotDeletion);
+  //GET_PILEUP_BY_FILTER(pPileup, PileupFilter::IsNotDeletion(elements_[i]))
 }
 
 /**
@@ -72,13 +73,14 @@ void ReadBackedPileup::GetBaseAndMappingFilteredPileup(
     int min_base_quality,
     int min_map_quality,
     ReadBackedPileup* pPileup) {
-  //auto pred = [min_base_quality, min_map_quality](PileupElement element)->bool {
-    //return SAMBAMRecord::GetMapQuality(element.GetRead()) >= min_map_quality &&
-      //(element.IsDeletion() || element.GetQual() >= min_base_quality);
-  //};
   GetPileupByFilter(pPileup,
                     std::bind(PileupFilter::IsBaseAndMappingQualityLarge,
-                              std::placeholders::_1, min_base_quality, min_map_quality));
+                              std::placeholders::_1, min_base_quality,
+                              min_map_quality));
+  //GET_PILEUP_BY_FILTER(
+  //    pPileup,
+  //    PileupFilter::IsBaseAndMappingQualityLarge(
+  //        elements_[i], min_base_quality, min_map_quality));
 }
 
 
@@ -107,6 +109,9 @@ void ReadBackedPileup::GetPileupWithoutMappingQualityZeroReads(
     //return SAMBAMRecord::GetMapQuality(element.GetRead()) > 0;
   //};
   GetPileupByFilter(pPileup, PileupFilter::IsMappingQualityLargerThanZero);
+  //GET_PILEUP_BY_FILTER(
+  //    pPileup,
+  //    PileupFilter::IsMappingQualityLargerThanZero(elements_[i]));
 }
 
 void ReadBackedPileup::GetPositiveStrandPileup(ReadBackedPileup* pPileup) {
@@ -114,6 +119,7 @@ void ReadBackedPileup::GetPositiveStrandPileup(ReadBackedPileup* pPileup) {
   //  return !SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
   //};
   GetPileupByFilter(pPileup, PileupFilter::IsPositiveStrand);
+  //GET_PILEUP_BY_FILTER(pPileup, PileupFilter::IsPositiveStrand(elements_[i]));
 }
 
 void ReadBackedPileup::GetNegativeStrandPileup(ReadBackedPileup* pPileup) {
@@ -121,39 +127,55 @@ void ReadBackedPileup::GetNegativeStrandPileup(ReadBackedPileup* pPileup) {
   //  return SAMBAMRecord::GetReadNegativeStrandFlag(element.GetRead());
   //};
   GetPileupByFilter(pPileup, PileupFilter::IsNegativeStrand);
+  //GET_PILEUP_BY_FILTER(pPileup, PileupFilter::IsNegativeStrand(elements_[i]));
 }
+
+struct record_hash {
+  size_t operator()(SAMBAMRecord* read) const {
+    return read->HashCode();
+  }
+};
+
+struct record_equal {
+  bool operator()(SAMBAMRecord* lhs,
+                  SAMBAMRecord* rhs) const {
+    return lhs->GetQueryName() == rhs->GetQueryName();
+  }
+};
 
 void ReadBackedPileup::GetOverlappingFragmentFilteredPileup(
     ReadBackedPileup* pPileup,
     uint8_t ref, bool retain_mismatches) {
 
   int size = elements_.size();
-  // store the read_name=>read_idx
-  std::unordered_map<std::string, int> filter_map;
+  // store the read=>read_idx
+  std::unordered_map<SAMBAMRecord*, int,
+    record_hash, record_equal> filter_map;
 
   std::vector<bool> elements_to_keep(size, false);
 
   for (int index=0; index<size; index++) {
-    const std::string& read_name = elements_[index]->GetRead()->GetQueryName();
+    //const std::string& read_name = elements_[index]->GetRead()->GetQueryName();
+    SAMBAMRecord* read = elements_[index]->GetRead();
 
-    if (filter_map.find(read_name) == filter_map.end()) {
-      filter_map[read_name] = index;
+    if (filter_map.find(read) == filter_map.end()) {
+      filter_map[read] = index;
       elements_to_keep[index] = true;
     } else {
-      int existing_index = filter_map[read_name];
+      int existing_index = filter_map[read];
       const PileupElement& cur_pileup = *elements_[index];
       const PileupElement& existing_pileup = *elements_[existing_index];
 
       // if the read disagree at this position
       if (existing_pileup.GetBase() != cur_pileup.GetBase()) {
         if (!retain_mismatches) {
-          filter_map.erase(read_name);
+          filter_map.erase(read);
           elements_to_keep[existing_index] = false;
         } else {
           // keep the mismatching one
           if (cur_pileup.GetBase() != ref) {
             elements_to_keep[existing_index] = false;
-            filter_map[read_name] = index;
+            filter_map[read] = index;
             elements_to_keep[index] = true;
           }
         }
@@ -161,7 +183,7 @@ void ReadBackedPileup::GetOverlappingFragmentFilteredPileup(
         // otherwise, keep the element with the higher qualitu score
         if (existing_pileup.GetQual() < cur_pileup.GetQual()) {
           elements_to_keep[existing_index] = false;
-          filter_map[read_name] = index;
+          filter_map[read] = index;
           elements_to_keep[index] = true;
         }
       }

@@ -32,7 +32,7 @@ class ReferenceSequence : public NonCopyable {
     : base(rhs.base),
     len(rhs.len) {
     rhs.base = nullptr;
-    len = 0;
+    rhs.len = 0;
   }
 
   ReferenceSequence& operator=(ReferenceSequence&& rhs) {
