@@ -24,11 +24,11 @@ TEST(test_genome, normal) {
 
 TEST(IntervalFileToList, IntervalUtils) {
   TEST_FILE("references/references/human_g1k_v37.fasta", b37);
-  TEST_FILE("mutect_panle_372.interval_list", interval_file);
+  TEST_FILE("mutect_panle_372.all.interval_list", interval_file);
   IndexedFastaSequenceFile reference(b37);
   GenomeLocParser parser(reference.GetSequenceDictionary());
   std::vector<GenomeLoc> genome_locs =
-    IntervalUtils::IntervalFileToList(parser, interval_file);
+    IntervalUtils::IntervalFileToList(parser, interval_file, 0);
   EXPECT_EQ(genome_locs.size(), 16173);
   EXPECT_EQ(genome_locs[0], GenomeLoc("1", 0, 2488076, 2488196));
 }

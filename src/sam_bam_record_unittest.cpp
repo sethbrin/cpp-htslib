@@ -81,8 +81,8 @@ TEST(SAMBAMRecord, unordered_map) {
   map[&record]  = 1;
   EXPECT_NE(map.find(&record), map.end());
   EXPECT_EQ(map[&record], 1);
-  EXPECT_EQ(map[&record2], 1);
   EXPECT_NE(map.find(&record2), map.end());
+  EXPECT_EQ(map[&record2], 1);
   SAMBAMRecord record3;
   reader.HasNext(&record3);
   EXPECT_NE(map.find(&record3), map.end());

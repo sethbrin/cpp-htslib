@@ -666,7 +666,8 @@ void Mutect::Run() {
   easehts::GenomeLocParser parser(reference_.GetSequenceDictionary());
   std::vector<easehts::GenomeLoc> intervals =
     easehts::IntervalUtils::LoadIntervals(
-        parser, mutect_args_.interval_file.getValue());
+        parser, mutect_args_.interval_file.getValue(),
+        mutect_args_.interval_padding.getValue());
 
   call_stats_generator_.WriteHeader();
   int thread_cnt = mutect_args_.thread_cnt.getValue();

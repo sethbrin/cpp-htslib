@@ -121,12 +121,14 @@ class GenomeLoc {
         GenomeLoc::IsUnmapped(that)) {
       ERROR_COND(!GenomeLoc::IsUnmapped(*this) ||
                  !GenomeLoc::IsUnmapped(that),
-                 utils::StringFormatCStr("Trid to merge a mapped and an unmapped genome loc"));
+                 utils::StringFormatCStr(
+                     "Trid to merge a mapped and an unmapped genome loc"));
       return kUnmapped;
     }
 
     ERROR_COND(!ContiguousP(that),
-               utils::StringFormatCStr("The two genome loc's need to be contiguous"));
+               utils::StringFormatCStr(
+                   "The two genome loc's need to be contiguous"));
 
     return GenomeLoc(GetContig(), contig_id_,
                      std::min(GetStart(), that.GetStart()),
@@ -140,7 +142,8 @@ class GenomeLoc {
     } else if (ThroughEndOfContigP() || GetStart() == GetStop()) {
       return utils::StringFormat("%s:%d", GetContig().c_str(), GetStart());
     } else {
-      return utils::StringFormat("%s:%d-%d", GetContig().c_str(), GetStart(), GetStop());
+      return utils::StringFormat("%s:%d-%d",
+                                 GetContig().c_str(), GetStart(), GetStop());
     }
 
   }
@@ -238,13 +241,18 @@ class GenomeLocParser : public NonCopyable {
 
 class IntervalUtils : public NonCopyable {
  public:
-  static std::vector<GenomeLoc> LoadIntervals(const GenomeLocParser& gl_parser,
-                                             const std::string& filename);
+  static std::vector<GenomeLoc> LoadIntervals(
+      const GenomeLocParser& gl_parser,
+      const std::string& filename,
+      const int interval_padding);
 
-  static std::vector<GenomeLoc> IntervalFileToList(const GenomeLocParser& gl_parser,
-                                                   const std::string& filename);
+  static std::vector<GenomeLoc> IntervalFileToList(
+      const GenomeLocParser& gl_parser,
+      const std::string& filename,
+      const int interval_padding);
 
-  static std::vector<GenomeLoc> MergeIntervals(const std::vector<GenomeLoc>& genome_locs);
+  static std::vector<GenomeLoc> MergeIntervals(
+      const std::vector<GenomeLoc>& genome_locs);
 
   /**
    * read interval header from filename

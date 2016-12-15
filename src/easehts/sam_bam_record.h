@@ -106,12 +106,16 @@ class SAMBAMRecord : public NonCopyable {
   SAMBAMRecord(SAMBAMRecord&& rhs)
       : raw_record_(rhs.raw_record_) {
     rhs.raw_record_ = nullptr;
+    alignment_end_ = kUninitializedCachedIntValue;
+    read_name_hashcode_ = 0;
   }
 
   SAMBAMRecord& operator=(SAMBAMRecord&& rhs) {
     if (this == &rhs) return *this;
     raw_record_ = rhs.raw_record_;
     rhs.raw_record_ = nullptr;
+    alignment_end_ = kUninitializedCachedIntValue;
+    read_name_hashcode_ = 0;
     return *this;
   }
 

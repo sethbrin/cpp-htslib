@@ -16,34 +16,41 @@ namespace easehts {
 const GenomeLoc GenomeLoc::kUnmapped = GenomeLoc();
 const GenomeLoc GenomeLoc::kWholeGenome = GenomeLoc("all");
 
-bool GenomeLocParser::ValidateGenomeLoc(const std::string& contig, int start,
-                                        int stop, bool must_be_on_reference) const {
+bool GenomeLocParser::ValidateGenomeLoc(
+    const std::string& contig, int start,
+    int stop, bool must_be_on_reference) const {
   if (validation_level_ == ValidationLevel::NONE) {
     return true;
   } else {
     if (stop < start) {
-      WARN(utils::StringFormatCStr("The stop position %d is less than start %d in contig %s",
-                               stop, start, contig.c_str()));
+      WARN(utils::StringFormatCStr(
+              "The stop position %d is less than start %d in contig %s",
+              stop, start, contig.c_str()));
       return false;
     }
     if (must_be_on_reference &&
         !ref_header_.HasSequence(contig)) {
-      WARN(utils::StringFormatCStr("The reference has no contig %s\n", contig.c_str()));
+      WARN(utils::StringFormatCStr(
+              "The reference has no contig %s\n", contig.c_str()));
       return false;
     }
 
     if (must_be_on_reference) {
       if (start < 1) {
-        WARN(utils::StringFormatCStr("The start position %d is less than 1\n", start));
+        WARN(utils::StringFormatCStr(
+                "The start position %d is less than 1\n", start));
         return false;
       }
       if (stop < 1) {
-        WARN(utils::StringFormatCStr("The stop position %d is less than 1\n", stop));
+        WARN(utils::StringFormatCStr(
+                "The stop position %d is less than 1\n", stop));
         return false;
       }
       int contig_size = ref_header_.GetSequenceLen(contig);
       if (start > contig_size || stop > contig_size) {
-        WARN(utils::StringFormatCStr("The genome loc coordinates %d-%d exceed the contig size (%d)\n", start, stop, contig_size));
+        WARN(utils::StringFormatCStr(
+                "The genome loc coordinates %d-%d exceed the contig size (%d)\n"
+                , start, stop, contig_size));
         return false;
       }
 
@@ -57,11 +64,15 @@ int GenomeLocParser::GetContigId(const std::string& contig) const {
 
 std::vector<GenomeLoc> IntervalUtils::IntervalFileToList(
     const GenomeLocParser& gl_parser,
-    const std::string& filename) {
+    const std::string& filename,
+    const int interval_padding) {
 #define _read_token(_p) (_p); for (; *(_p) && *(_p) != '\t'; ++(_p)) {};
-#define _read_token_aux(_p) (_p); for (; *(_p) && *(_p) != '\t'; ++(_p)); *(_p)++ = 0
-#define _parse_err(cond, msg) do { if ((cond) && hts_verbose >= 1) { fprintf(stderr, "[E::%s] " msg "\n", __func__); goto err_ret; } } while (0)
-#define _parse_warn(cond, msg) if ((cond) && hts_verbose >= 2) fprintf(stderr, "[W::%s] " msg "\n", __func__)
+#define _read_token_aux(_p) (_p); for (; *(_p) && *(_p) != '\t'; \
+                                       ++(_p)); *(_p)++ = 0
+#define _parse_err(cond, msg) do { if ((cond) && hts_verbose >= 1) \
+  { fprintf(stderr, "[E::%s] " msg "\n", __func__); goto err_ret; } } while (0)
+#define _parse_warn(cond, msg) if ((cond) && hts_verbose >= 2) \
+  fprintf(stderr, "[W::%s] " msg "\n", __func__)
 
   std::vector<GenomeLoc> genome_locs;
   samFile* fp = sam_open(filename.c_str(), "r");
@@ -105,11 +116,14 @@ std::vector<GenomeLoc> IntervalUtils::IntervalFileToList(
     _parse_warn(p - q < 1, "empty sequence");
     name = std::string(q, p-q);
 
-    _parse_warn(!header.HasSequence(contig), "Ignore interval for unknown reference");
+    _parse_warn(!header.HasSequence(contig),
+                "Ignore interval for unknown reference");
 
     if (gl_parser.ValidateGenomeLoc(contig, start, stop, true)) {
       // As interval file is 1-based, so we should change to 0-based
-      genome_locs.emplace_back(contig, gl_parser.GetContigId(contig), start-1, stop-1);
+      genome_locs.emplace_back(contig, gl_parser.GetContigId(contig),
+                               start-1-interval_padding,
+                               stop-1+interval_padding);
     } else {
       _parse_warn(true, "Ignore invalid genome loc");
     }
@@ -131,9 +145,10 @@ err_ret:
 
 std::vector<GenomeLoc> IntervalUtils::LoadIntervals(
     const GenomeLocParser& gl_parser,
-    const std::string& filename) {
+    const std::string& filename,
+    const int interval_padding) {
   std::vector<GenomeLoc> genome_locs =
-    IntervalUtils::IntervalFileToList(gl_parser, filename);
+    IntervalUtils::IntervalFileToList(gl_parser, filename, interval_padding);
 
   // Sort and merge inteval
   std::sort(genome_locs.begin(), genome_locs.end());
