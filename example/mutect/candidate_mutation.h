@@ -6,7 +6,7 @@
 #define MUTECT_CANDIDATE_MUTATION_H_
 
 #include <easehts/genome_loc.h>
-#include <easehts/variant_context.h>
+#include <easehts/vcf.h>
 #include <easehts/diploid_genotype.h>
 
 #include <vector>
