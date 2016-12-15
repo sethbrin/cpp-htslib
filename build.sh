@@ -11,7 +11,7 @@ INSTALL_DIR=${INSTALL_DIR:-${BUILD_TYPE}-install}
 # build htslib
 cd ./thirdparty/htslib \
   && make \
-  && cd ..
+  && cd ../..
 
 mkdir -p $BUILD_DIR/$BUILD_TYPE \
   && cd $BUILD_DIR/$BUILD_TYPE \

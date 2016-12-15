@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 project(easehtslib)
 
-#set(CMAKE_CXX_COMPILER /opt/intel/compilers_and_libraries_2016/linux/bin/intel64/icpc)
 
 set(CXX_FLAGS
         -g
@@ -27,6 +26,15 @@ option(EASEHTS_BUILD_THIRDPARTY_GTEST
   "Use gtest installation in `thirdparty/gtest` by default if available" ON)
 option(USE_TCMALLOC "use Tcmalloc." ON)
 option(BUILD_BENCHMARK "build benchmark example." ON)
+option(USE_INTEL "use intel compiler." OFF)
+
+if (USE_INTEL)
+  message("use intel compiler")
+  set(CMAKE_CXX_COMPILER
+    /opt/intel/compilers_and_libraries_2016/linux/bin/intel64/icpc)
+  link_libraries(
+    /opt/intel/compilers_and_libraries_2016.1.150/linux/compiler/lib/intel64_lin/libirc.a)
+endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -finline-limit=1000 -DNDEBUG")
@@ -73,6 +81,7 @@ add_subdirectory(src)
 add_subdirectory(example)
 
 if (BUILD_BENCHMARK)
+  find_package(BenchmarkSrc)
   add_subdirectory(${PROJECT_SOURCE_DIR}/thirdparty/benchmark)
   add_subdirectory(benchmark)
 endif()

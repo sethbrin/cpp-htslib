@@ -2,7 +2,8 @@ SET(BENCHMARK_SEARCH_PATH
   "${BENCHMARK_SOURCE_DIR}"
   "${CMAKE_CURRENT_LIST_DIR}/../thirdparty/benchmark")
 
-FIND_PATH(GTEST_SOURCE_DIR
+
+FIND_PATH(BENCHMARK_SOURCE_DIR
     NAMES CMakeLists.txt src/benchmark.cc
     PATHS ${BENCHMARK_SEARCH_PATH})
 
@@ -10,9 +11,8 @@ FIND_PATH(GTEST_SOURCE_DIR
 # Debian installs gtest include directory in /usr/include, thus need to look
 # for include directory separately from source directory.
 FIND_PATH(BENCHMARK_INCLUDE_DIR
-    NAMES include/benchmark.h
+    NAMES benchmark/benchmark.h
     PATH_SUFFIXES include
-    HINTS ${BENCHMARK_SOURCE_DIR}
     PATHS ${BENCHMARK_SEARCH_PATH})
 
 INCLUDE(FindPackageHandleStandardArgs)

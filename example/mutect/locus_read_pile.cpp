@@ -43,20 +43,23 @@ void LocusReadPile::AddPileupElement(
 
 void LocusReadPile::InitPileups() {
   easehts::gatk::ReadBackedPileup no_overlap_pileup;
-  pileup_.GetOverlappingFragmentFilteredPileup(&no_overlap_pileup,
-                                               ref_base_, retain_overlap_mismatches_);
+  pileup_.GetOverlappingFragmentFilteredPileup(
+      &no_overlap_pileup,
+      ref_base_, retain_overlap_mismatches_);
 
   no_overlap_pileup.GetPileupWithoutDeletions(&initial_pileup_);
   initial_pileup_.GetBaseFilteredPileup(min_quality_score_,
                                         &quality_score_filter_pileup_);
-  quality_score_filter_pileup_.GetPileupWithoutMappingQualityZeroReads(&final_pileup_);
+  quality_score_filter_pileup_.
+    GetPileupWithoutMappingQualityZeroReads(&final_pileup_);
 
   easehts::gatk::ReadBackedPileup tmp_pileup;
 
   // GetPileupWithoutDeletions && GetBaseFilteredPileup
   auto pred = [this](easehts::gatk::PileupElement* element)->bool {
     return !element->IsDeletion() &&
-      (element->IsDeletion() || element->GetQual() >= this->min_quality_score_);
+      (element->IsDeletion() ||
+       element->GetQual() >= this->min_quality_score_);
   };
   pileup_.GetPileupByFilter(&tmp_pileup, pred);
 

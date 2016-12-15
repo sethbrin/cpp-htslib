@@ -1,6 +1,5 @@
 include_directories(${PROJECT_SOURCE_DIR}/src/)
 
-find_package(BenchmarkSrc)
 include_directories(SYSTEM ${BENCHMARK_INCLUDE_DIR})
 
 link_libraries(easehtslib)
