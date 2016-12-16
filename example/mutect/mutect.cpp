@@ -98,6 +98,21 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
   }
 }
 
+void Worker::PrepareVariantContext(const easehts::GenomeLoc& location) {
+  for (auto& item : cosmic_traverses_) {
+    item->SeekFroward(location);
+    cosmic_variant_context_ = item->GetFirstRecord();
+    if (cosmic_variant_context_) break;
+  }
+
+  for (auto& item : dbsnp_traverses_) {
+    item->SeekFroward(location);
+    dbsnp_variant_context_ = item->GetFirstRecord();
+    if (dbsnp_variant_context_) break;
+  }
+
+}
+
 void Worker::PrepareResult(
     const easehts::GenomeLoc& location,
     const uint64_t min_contig_pos,
@@ -159,6 +174,7 @@ void Worker::PrepareCondidate(
     const easehts::GenomeLoc& location,
     const LocusReadPile& tumor_read_pile,
     const LocusReadPile& normal_read_pile) {
+  PrepareVariantContext(location);
   // remove the effect of cosmic from dbSNP
   // XXX current not support, just set false
   bool germline_at_risk = false;

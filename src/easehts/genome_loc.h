@@ -36,6 +36,15 @@ class GenomeLoc {
     start_(start),
     stop_(stop) {}
 
+  // WARN As contig_name_ may be expensive, here we just use contig_id
+  // to construct it, but we can not get the ContigName
+  // just for the temporary use
+  GenomeLoc(int contig_id,
+            int start, int stop)
+    : contig_id_(contig_id),
+    start_(start),
+    stop_(stop) {}
+
   GenomeLoc(const std::string& contig)
     : GenomeLoc(contig, -1, 0, 0) {}
 
@@ -53,6 +62,30 @@ class GenomeLoc {
   bool operator== (const GenomeLoc& that) const {
     return CompareTo(that) == 0;
   }
+
+  /**
+   * Test whether this contig is completely after contig 'that'
+   * @param that contig to test against
+   * @return true if this contig starts after 'that' end, false otherwise
+   */
+  bool IsPast(const GenomeLoc& that) const {
+    int comparsion = CompareContigs(that);
+    return comparsion == 1 ||
+      (comparsion == 0 && start_ > that.stop_);
+  }
+
+  /**
+   * Test whether this contig is completely before contig 'that'
+   * @param that contig to test against
+   * @return true if this contig starts before 'that' end, false otherwise
+   */
+  bool IsBefore(const GenomeLoc& that) const {
+    int comparsion = CompareContigs(that);
+    return comparsion == -1 ||
+      (comparsion == 0 && stop_ < that.start_);
+  }
+
+
   /**
    * compare this genomeLoc's contig to another genome loc
    * @param that the genome loc to compare contigs with

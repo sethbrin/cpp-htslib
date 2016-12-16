@@ -51,7 +51,9 @@ class MutectArgs : public ncic::easehts::NonCopyable {
     thread_cnt('t', "nthreads", false, 1, "number of threads"),
     // NOTE here the default value is false, while in mutect is true
     downsampling(easehts::BaseOption::NO_OPTION, "downsampling", false, "the pileup downsampling"),
-    interval_padding(easehts::BaseOption::NO_OPTION, "interval_padding", false, 0, "Amount of padding (in bp) to add to each interval")
+    interval_padding(easehts::BaseOption::NO_OPTION, "interval_padding", false, 0, "Amount of padding (in bp) to add to each interval"),
+    cosmic_files(easehts::BaseOption::NO_OPTION, "cosmic", false, "VCF file of COSMIC sites"),
+    dbsnp_files(easehts::BaseOption::NO_OPTION, "dbsnp", false, "VCF file of DBSNP information")
   {
 
     easehts::ArgsParser parser;
@@ -93,7 +95,9 @@ class MutectArgs : public ncic::easehts::NonCopyable {
       .addOption(vcf_file)
       .addOption(thread_cnt)
       .addOption(downsampling)
-      .addOption(interval_padding);
+      .addOption(interval_padding)
+      .addOption(cosmic_files)
+      .addOption(dbsnp_files);
 
     parser.parse(argc, argv);
   }
@@ -138,6 +142,8 @@ class MutectArgs : public ncic::easehts::NonCopyable {
   easehts::IntegerOption thread_cnt;
   easehts::BoolOption downsampling;
   easehts::IntegerOption interval_padding;
+  easehts::StringListOption cosmic_files;
+  easehts::StringListOption dbsnp_files;
 };
 
 } // mutect

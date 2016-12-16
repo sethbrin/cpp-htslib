@@ -53,7 +53,8 @@ class ReferenceSequence : public NonCopyable {
 
   char& At(size_t idx) const {
     ERROR_COND(idx >= len,
-        utils::StringFormatCStr("out of bound error, the size is %d, and get %d", len, idx));
+        utils::StringFormatCStr(
+            "out of bound error, the size is %d, and get %d", len, idx));
 
     return base[idx];
   }
@@ -70,7 +71,9 @@ class ReferenceSequence : public NonCopyable {
   int len;
 };
 
-/* Provide core sequence dictionary functionality required by all fasta file readers.
+/*
+ * Provide core sequence dictionary functionality required by
+ * all fasta file readers.
  */
 class AbstractFastaSequenceFile : public NonCopyable {
  public:
@@ -113,7 +116,8 @@ class AbstractFastaSequenceFile : public NonCopyable {
    * @param stop inclusive, 0-based stop of region.
    * @return The partial reference sequence associated with this range.
    */
-  virtual ReferenceSequence GetSequenceAt(const std::string& contig, int start, int stop) const = 0;
+  virtual ReferenceSequence GetSequenceAt(const std::string& contig,
+                                          int start, int stop) const = 0;
 
   virtual ReferenceSequence GetSequenceAt(const GenomeLoc& location) const = 0;
   /**
@@ -123,7 +127,8 @@ class AbstractFastaSequenceFile : public NonCopyable {
    * @param reference file name
    * @return dictionary file name
    */
-  static std::string FindSequenceDictionaryFileName(const std::string& file_path);
+  static std::string FindSequenceDictionaryFileName(
+      const std::string& file_path);
  private:
   // the reference file path
   std::string file_path_;
@@ -182,14 +187,16 @@ class FastaIndex {
    * @param contig contig name
    * @param start the start position
    * @param stop the stop position
-   * @return ReferenceSequence, ReferenceSequence.len: -2 if seq not present, -1
-   * general error, ReferenceSequence.base: Pointer to the sequence; `NULL` on
-   * failure
+   * @return ReferenceSequence, ReferenceSequence.len: -2 if seq not present,
+   * -1 general error, ReferenceSequence.base: Pointer to the sequence;
+   * `NULL` on failure
    */
-  ReferenceSequence GetSequence(const std::string& contig, int start, int stop) const {
+  ReferenceSequence GetSequence(const std::string& contig,
+                                int start, int stop) const {
     CHECK_NOTNULL(fai_);
     ReferenceSequence ref_seq;
-    ref_seq.base = ::faidx_fetch_seq(fai_, contig.c_str(), start, stop, &ref_seq.len);
+    ref_seq.base = ::faidx_fetch_seq(fai_, contig.c_str(), start, stop,
+                                     &ref_seq.len);
     return ref_seq;
   }
 
@@ -197,9 +204,9 @@ class FastaIndex {
    * Fetch the sequence in a region
    * @param region  Region in the format "chr2:20,000-30,000"
    * XXX region is 1-base
-   * @return ReferenceSequence, ReferenceSequence.len: -2 if seq not present, -1
-   * general error, ReferenceSequence.base: Pointer to the sequence; `NULL` on
-   * failure
+   * @return ReferenceSequence, ReferenceSequence.len: -2 if seq not present,
+   * -1 general error, ReferenceSequence.base: Pointer to the sequence;
+   * `NULL` on failure
    *
    */
   ReferenceSequence GetSequence(const std::string& region) const {
@@ -266,10 +273,12 @@ class IndexedFastaSequenceFile : public AbstractFastaSequenceFile {
   }
 
   ReferenceSequence GetSequence(const std::string& contig) const override {
-    return fasta_index_.GetSequence(contig, 1, fasta_index_.GetContigLength(contig));
+    return fasta_index_.GetSequence(contig, 1,
+                                    fasta_index_.GetContigLength(contig));
   }
 
-  ReferenceSequence GetSequenceAt(const std::string& contig, int start, int stop) const override {
+  ReferenceSequence GetSequenceAt(const std::string& contig,
+                                  int start, int stop) const override {
     return fasta_index_.GetSequence(contig, start, stop);
   }
 
@@ -284,9 +293,10 @@ class IndexedFastaSequenceFile : public AbstractFastaSequenceFile {
    * the start pos change to 'x'
    */
   std::string CreateSequenceContext(const GenomeLoc& loc, int size) {
-    std::string res = fasta_index_.GetSequence(loc.GetContig().c_str(),
-                                               loc.GetStart() - size,
-                                               loc.GetStart() + size).ToString();
+    std::string res = fasta_index_.GetSequence(
+        loc.GetContig().c_str(),
+        loc.GetStart() - size,
+        loc.GetStart() + size).ToString();
     res[3] = 'x';
     return res;
   }

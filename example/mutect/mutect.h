@@ -16,6 +16,7 @@
 #include <easehts/sam_bam_reader.h>
 #include <easehts/sam_bam_record.h>
 #include <easehts/reference_sequence.h>
+#include <easehts/vcf.h>
 #include <easehts/gatk/pileup.h>
 
 #include <atomic>
@@ -25,6 +26,7 @@
 #include <list>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace ncic {
 namespace mutect {
@@ -46,11 +48,32 @@ class Worker : public easehts::NonCopyable {
     }
 
     // init normal readers
-    std::list<std::string> normal_values = mutect_args_.normal_files.getValue();
+    std::list<std::string> normal_values =
+      mutect_args_.normal_files.getValue();
     for(std::list<std::string>::iterator entry = normal_values.begin();
         entry != normal_values.end(); ++entry) {
       normal_readers_.emplace_back(*entry);
     }
+
+    // init cosmic traverse
+    std::list<std::string> cosmic_values =
+      mutect_args_.cosmic_files.getValue();
+    for(std::list<std::string>::iterator entry = cosmic_values.begin();
+        entry != cosmic_values.end(); ++entry) {
+      cosmic_traverses_.emplace_back(
+          new easehts::VCFTraverse(new easehts::VCFTextReader(*entry)));
+    }
+
+    // init dbsnp traverse
+    std::list<std::string> dbsnp_values =
+      mutect_args_.dbsnp_files.getValue();
+    for(std::list<std::string>::iterator entry = dbsnp_values.begin();
+        entry != dbsnp_values.end(); ++entry) {
+      dbsnp_traverses_.emplace_back(
+          new easehts::VCFTraverse(new easehts::VCFTextReader(*entry)));
+    }
+
+
 
     has_normal_bam_ = normal_readers_.size() != 0;
     if (!has_normal_bam_) {
@@ -92,6 +115,15 @@ class Worker : public easehts::NonCopyable {
 
   void Run(const easehts::GenomeLoc& interval);
 
+  ~Worker() {
+    for (auto& item : cosmic_traverses_) {
+      delete item->GetReader();
+    }
+    for (auto& item : dbsnp_traverses_) {
+      delete item->GetReader();
+    }
+  }
+
  public:
   const static int kReferenceHalfWindowLength;
 
@@ -113,6 +145,8 @@ class Worker : public easehts::NonCopyable {
       const easehts::GenomeLoc& location,
       const LocusReadPile& tumor_read_pile,
       const LocusReadPile& normal_read_pile);
+
+  void PrepareVariantContext(const easehts::GenomeLoc& location);
 
   void FilterReads(
       const easehts::ReferenceSequence& ref_bases,
@@ -137,6 +171,12 @@ class Worker : public easehts::NonCopyable {
   std::vector<easehts::BAMIndexReader> normal_readers_;
   bool has_normal_bam_;
   double contaminat_alternate_fraction_;
+
+  std::vector<std::unique_ptr<easehts::VCFTraverse>> cosmic_traverses_;
+  std::vector<std::unique_ptr<easehts::VCFTraverse>> dbsnp_traverses_;
+
+  easehts::VariantContext* cosmic_variant_context_;
+  easehts::VariantContext* dbsnp_variant_context_;
 
   TumorPowerCalculator tumor_power_calculator_;
   NormalPowerCalculator normal_novel_site_power_calculator_;

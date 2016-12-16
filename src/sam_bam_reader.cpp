@@ -53,7 +53,8 @@ void BAMIndexReader::SetRegion(const std::string& region) {
 void BAMIndexReader::SetRegion(int32_t tid, int32_t begin, int32_t end) {
   hts_itr_t *iter = ::sam_itr_queryi(index_.GetRawIndex(), tid, begin, end);
   if (iter == nullptr) {
-    WARN(utils::StringFormatCStr("fail to parse region '%d:%d-%d'", tid, begin, end));
+    WARN(utils::StringFormatCStr("fail to parse region '%d:%d-%d'",
+                                 tid, begin, end));
     return;
   }
   if (hts_iter_ != nullptr) {
