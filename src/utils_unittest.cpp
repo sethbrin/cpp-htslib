@@ -58,6 +58,7 @@ TEST(RoundNearestFormat, normal) {
   EXPECT_STREQ(RoundNearestFormat(1.23, 6).c_str(), "1.23");
   EXPECT_STREQ(RoundNearestFormat(1.2, 6).c_str(), "1.2");
   EXPECT_STREQ(RoundNearestFormat(1.0, 6).c_str(), "1");
+  EXPECT_STREQ(RoundNearestFormat(-0.0000000000003f, 6).c_str(), "0");
   EXPECT_STREQ(RoundNearestFormat(-236.475073, 6).c_str(), "-236.475073");
   EXPECT_STREQ(RoundNearestFormat(4.116630, 6).c_str(), "4.11663");
   EXPECT_STREQ(RoundNearestFormat(0.28536039716838274, 6).c_str(), "0.28536");

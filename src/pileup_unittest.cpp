@@ -42,7 +42,7 @@ TEST(Next, PileupTraverse) {
 }
 
 TEST(MutectBam, NormalPileupTraverse) {
-  TEST_FILE("MG225_normal_sorted_X.bam", filename);
+  TEST_FILE("localtestdata/middle/MG225_normal_sorted_X.bam", filename);
   BAMIndexReader reader(filename);
   reader.SetRegion(22, 15482483-3000, 15482603+3000);
   TraverseData data;
@@ -59,7 +59,7 @@ TEST(MutectBam, NormalPileupTraverse) {
 }
 
 TEST(MutectBam, TumorPileupTraverse) {
-  TEST_FILE("MG225_tumor_sorted_X.bam", filename);
+  TEST_FILE("localtestdata/middle/MG225_tumor_sorted_X.bam", filename);
   BAMIndexReader reader(filename);
   reader.SetRegion(22, 15482483-3000, 15482603+3000);
   TraverseData data;

@@ -61,7 +61,7 @@ class Worker : public easehts::NonCopyable {
     for(std::list<std::string>::iterator entry = cosmic_values.begin();
         entry != cosmic_values.end(); ++entry) {
       cosmic_traverses_.emplace_back(
-          new easehts::VCFTraverse(new easehts::VCFTextReader(*entry)));
+          new easehts::VCFTraverse(new easehts::VCFIndexReader(*entry)));
     }
 
     // init dbsnp traverse
@@ -70,7 +70,7 @@ class Worker : public easehts::NonCopyable {
     for(std::list<std::string>::iterator entry = dbsnp_values.begin();
         entry != dbsnp_values.end(); ++entry) {
       dbsnp_traverses_.emplace_back(
-          new easehts::VCFTraverse(new easehts::VCFTextReader(*entry)));
+          new easehts::VCFTraverse(new easehts::VCFIndexReader(*entry)));
     }
 
 
@@ -147,6 +147,7 @@ class Worker : public easehts::NonCopyable {
       const LocusReadPile& normal_read_pile);
 
   void PrepareVariantContext(const easehts::GenomeLoc& location);
+  void PrepareVCFTraverse(const easehts::GenomeLoc& interval);
 
   void FilterReads(
       const easehts::ReferenceSequence& ref_bases,

@@ -34,7 +34,7 @@ TEST(VCFIndexReader, normal) {
 TEST(VCFIndexReader, SetRegion) {
   TEST_FILE("vcf/exampleDBSNP.compress.vcf", filename);
   VCFIndexReader reader(filename);
-  reader.SetRegion(0, 10254, 10519);
+  reader.SetRegion("chr1:10440-10519");
 
   int cnt = 0;
   while (reader.HasNext()) {
@@ -42,7 +42,17 @@ TEST(VCFIndexReader, SetRegion) {
     cnt ++;
     delete record;
   }
-  EXPECT_EQ(cnt, 217);
+  EXPECT_EQ(cnt, 5);
+
+  reader.SetRegion(0, 10439, 10519);
+  cnt = 0;
+  while (reader.HasNext()) {
+    VariantContext* record = reader.Next();
+    cnt ++;
+    delete record;
+  }
+  EXPECT_EQ(cnt, 5);
+
 }
 
 
@@ -89,4 +99,31 @@ TEST(VCFTraverse, normal) {
   traverse.GetRecords(&records);
   EXPECT_EQ(records.size(), 2);
 }
+
+TEST(VCFTraverse, VCFIndexReader) {
+  TEST_FILE("vcf/exampleDBSNP.compress.vcf", filename);
+  VCFIndexReader reader(filename);
+  reader.SetRegion(0, 10438, 10519);
+
+  VCFTraverse traverse(&reader);
+
+  traverse.SeekFroward(GenomeLoc("chr1", 0, 10438, 10438));
+  std::vector<VariantContext*> records;
+  traverse.GetRecords(&records);
+  EXPECT_EQ(records.size(), 2);
+
+  traverse.SeekFroward(GenomeLoc("chr1", 0, 10439, 10439));
+  traverse.GetRecords(&records);
+  EXPECT_EQ(records.size(), 1);
+
+  traverse.SeekFroward(GenomeLoc("chr1", 0, 10440, 10440));
+  traverse.GetRecords(&records);
+  EXPECT_EQ(records.size(), 0);
+
+
+  traverse.SeekFroward(GenomeLoc("chr1", 0, 10440, 10519));
+  traverse.GetRecords(&records);
+  EXPECT_EQ(records.size(), 2);
+}
+
 

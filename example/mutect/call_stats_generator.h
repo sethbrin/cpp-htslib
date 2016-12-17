@@ -55,9 +55,11 @@ class CallStatsGenerator : public easehts::NonCopyable {
       keep_string = "KEEP";
     }
 
-    std::string site_info = GetSiteInfoString(candidate.dbsnp_site, candidate.cosmic_site);
+    std::string site_info = GetSiteInfoString(candidate.dbsnp_site,
+                                              candidate.cosmic_site);
 
-    std::string strand_info = GetStrandTableString(candidate.strand_contingency_table);
+    std::string strand_info = GetStrandTableString(
+        candidate.strand_contingency_table);
 
     d["contig"] = candidate.location.GetContig();
     // XXX change to 1-based
@@ -65,8 +67,10 @@ class CallStatsGenerator : public easehts::NonCopyable {
     d["context"] = candidate.sequence_context;
     d["ref_allele"] = Format(candidate.ref_allele);
     d["alt_allele"] = Format(candidate.alt_allele);
-    d["tumor_name"] = candidate.tumor_sample_name;
-    d["normal_name"] = candidate.normal_sample_name;
+    //d["tumor_name"] = candidate.tumor_sample_name;
+    //d["normal_name"] = candidate.normal_sample_name;
+    d["tumor_name"] = "MG225_tumor";
+    d["normal_name"] = "MG225_normal";
     d["score"] = Format(candidate.score);
     d["dbsnp_site"] = site_info;
     d["covered"] = (candidate.covered?"COVERED":"UNCOVERED");

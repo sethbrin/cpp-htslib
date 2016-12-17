@@ -4,6 +4,5 @@ src.exvim
 .exvim.src/
 build/
 src/unittest.h
-test/references/
-test/
+test/localtestdata/
 cmake-build-debug/

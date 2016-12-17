@@ -40,7 +40,7 @@ class CandidateMutation {
 
   bool IsGermlineAtRisk() const {
     // TODO
-    return false;
+    return dbsnp_site && !cosmic_site;
   }
 
   bool IsRejected() const {
@@ -59,8 +59,8 @@ class CandidateMutation {
   bool cosmic_site = false;
 
   // NOTE current not support
-  easehts::VariantContext panel_of_normals_VC;
-  easehts::VariantContext dbsnp_VC;
+  easehts::VariantContext* panel_of_normals_VC;
+  easehts::VariantContext* dbsnp_VC;
 
   bool covered = false;
   double power = 0;

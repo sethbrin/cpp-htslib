@@ -10,6 +10,7 @@
 
 #include <htslib/sam.h>
 #include <htslib/vcf.h>
+#include <htslib/tbx.h>
 
 #include <cassert>
 #include <list>
@@ -173,13 +174,16 @@ class VCFIndexReader : public VCFReader {
   explicit VCFIndexReader(const std::string& filename,
                           const std::string& mode="r")
     : VCFReader(filename, mode) {
-    hts_idx_ = bcf_index_load(filename_.c_str());
+    tbx_idx_ = tbx_index_load(filename_.c_str());
+    WARN_COND(tbx_idx_ == nullptr,
+              utils::StringFormatCStr(
+                  "the index of file %s can not loaded", filename.c_str()));
     hts_iter_ = nullptr;
   }
 
   ~VCFIndexReader() {
-    ::bcf_itr_destroy(hts_iter_);
-    ::hts_idx_destroy(hts_idx_);
+    if (hts_iter_) tbx_itr_destroy(hts_iter_);
+    if (tbx_idx_) tbx_destroy(tbx_idx_);
   }
 
   /**
@@ -197,7 +201,7 @@ class VCFIndexReader : public VCFReader {
   bool HasNext() override;
 
  private:
-  hts_idx_t* hts_idx_;
+  tbx_t* tbx_idx_;
   hts_itr_t* hts_iter_;
 };
 

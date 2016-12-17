@@ -177,6 +177,10 @@ class BAMIndexReader : public AbstractSAMBAMReader {
    * @param region
    */
   void SetRegion(const std::string& region);
+
+  /**
+   * [begin, end)
+   */
   void SetRegion(int32_t tid, int32_t begin, int32_t end);
 
  private:

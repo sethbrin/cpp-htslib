@@ -22,9 +22,11 @@ TEST(test_genome, normal) {
 
 }
 
+// TODO create reference test data
 TEST(IntervalFileToList, IntervalUtils) {
-  TEST_FILE("references/references/human_g1k_v37.fasta", b37);
-  TEST_FILE("mutect_panle_372.all.interval_list", interval_file);
+  TEST_FILE("localtestdata/references/references/human_g1k_v37.fasta", b37);
+  TEST_FILE("localtestdata/middle/mutect_panle_372.all.interval_list",
+            interval_file);
   IndexedFastaSequenceFile reference(b37);
   GenomeLocParser parser(reference.GetSequenceDictionary());
   std::vector<GenomeLoc> genome_locs =

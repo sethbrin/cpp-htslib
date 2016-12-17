@@ -52,6 +52,11 @@ const long long ThreadLocalRandom::kMask = (1LL << 48) - 1;
 
 std::string RoundNearestFormat(double val, size_t max_digits) {
   double EPS = std::pow(10.0, -1.0 * (max_digits + 1)) * 5;
+
+  // if val equals to -0.0000000000003, then just print 0
+  // while the following print that -0
+  if (std::fabs(val) < EPS) return "0";
+
   char str[80];
   for (int i = 0; i < max_digits; i++) {
     double round_val = RoundNearest(val, i);

@@ -44,6 +44,7 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
     tumor_traverses.emplace_back(&reader, interval,
                                  is_downsampling);
   }
+  PrepareVCFTraverse(interval);
 
   // the min postion of current site
   uint64_t cur_site = (uint64_t)-1;
@@ -96,6 +97,23 @@ void Worker::Run(const easehts::GenomeLoc& interval) {
 
     PrepareResult(location, min_contig_pos, tumor_traverses, normal_traverses);
   }
+}
+
+void Worker::PrepareVCFTraverse(const easehts::GenomeLoc& interval) {
+  for (auto& item : cosmic_traverses_) {
+    static_cast<easehts::VCFIndexReader*>(item->GetReader())->SetRegion(
+        interval.GetContigId(),
+        interval.GetStart(),
+        interval.GetStop());
+  }
+
+  for (auto& item : dbsnp_traverses_) {
+    static_cast<easehts::VCFIndexReader*>(item->GetReader())->SetRegion(
+        interval.GetContigId(),
+        interval.GetStart(),
+        interval.GetStop());
+  }
+
 }
 
 void Worker::PrepareVariantContext(const easehts::GenomeLoc& location) {
@@ -176,8 +194,8 @@ void Worker::PrepareCondidate(
     const LocusReadPile& normal_read_pile) {
   PrepareVariantContext(location);
   // remove the effect of cosmic from dbSNP
-  // XXX current not support, just set false
-  bool germline_at_risk = false;
+  bool germline_at_risk = dbsnp_variant_context_ != nullptr &&
+    cosmic_variant_context_ == nullptr;
 
   // compute coverage flags
   int tumor_covered_depth_threshold = 14;
@@ -263,9 +281,10 @@ void Worker::PrepareCondidate(
     candidate.contamination_fraction =
       mutect_args_.fraction_contamination.getValue();
     // TODO
-    // candidate.contamination_fraction
-    // candidate.cosmic_site
-    // candidate.dbsnp_site
+    // candidate.panelOfNormalsVC
+    candidate.cosmic_site = cosmic_variant_context_ != nullptr;
+    candidate.dbsnp_site = dbsnp_variant_context_ != nullptr;
+    candidate.dbsnp_VC = dbsnp_variant_context_;
     candidate.tumor_F = tumor_read_pile.EstimateAlleleFraction(
         up_ref, alt_allele);
 

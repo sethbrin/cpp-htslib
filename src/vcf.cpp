@@ -1,31 +1,29 @@
-#include <htslib/tbx.h>
 #include "easehts/vcf.h"
 
 namespace ncic {
 namespace easehts {
 
 void VCFIndexReader::SetRegion(const std::string& region) {
-  hts_itr_t *iter = bcf_itr_querys(hts_idx_,
-                                   header_->GetRawHeader(), region.c_str());
+  hts_itr_t *iter = tbx_itr_querys(tbx_idx_, region.c_str());
   if (iter == nullptr) {
     WARN(utils::StringFormatCStr("fail to parse region '%s'", region.c_str()));
     return;
   }
   if (hts_iter_ != nullptr) {
-    ::hts_itr_destroy(hts_iter_);
+    tbx_itr_destroy(hts_iter_);
   }
   hts_iter_ = iter;
 }
 
 void VCFIndexReader::SetRegion(int32_t tid, int32_t begin, int32_t end) {
-  hts_itr_t *iter = bcf_itr_queryi(hts_idx_, tid, begin, end);
+  hts_itr_t *iter = tbx_itr_queryi(tbx_idx_, tid, begin, end);
   if (iter == nullptr) {
     WARN(utils::StringFormatCStr("fail to parse region '%d:%d-%d'",
                                  tid, begin, end));
     return;
   }
   if (hts_iter_ != nullptr) {
-    ::hts_itr_destroy(hts_iter_);
+    tbx_itr_destroy(hts_iter_);
   }
   hts_iter_ = iter;
 }
@@ -43,10 +41,15 @@ bool VCFIndexReader::HasNext() {
     return false;
   }
 
-  while (hts_itr_next(hts_get_bgzfp(fp_), hts_iter_, record->GetRawRecord(), 0) >= 0) {
-  //while (bcf_itr_next(fp_, hts_iter_, record->GetRawRecord()) >= 0) {
-    cur_record_ = record;
-    return true;
+  kstring_t str = {0,0,0};
+  while (tbx_itr_next(fp_, tbx_idx_, hts_iter_, &str) >= 0) {
+    if ((vcf_parse(&str, header_->GetRawHeader(),
+                   record->GetRawRecord())) >= 0) {
+      cur_record_ = record;
+      return true;
+    } else {
+      WARN(utils::StringFormatCStr("Bad format vcf line:%s", str.s));
+    }
   }
   delete record;
   return false;
