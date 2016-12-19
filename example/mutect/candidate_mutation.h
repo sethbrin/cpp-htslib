@@ -132,6 +132,7 @@ class CandidateMutation {
   std::vector<std::string> rejection_reasons;
   bool rejected = false;
 
+  // use the double max value
   const static double kDoubleUnintialized;
 
 };

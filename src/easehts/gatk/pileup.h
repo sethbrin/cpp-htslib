@@ -194,8 +194,9 @@ class ReadBackedPileup {
   /**
    * Filter the reads with the same read name
    */
-  void GetOverlappingFragmentFilteredPileup(ReadBackedPileup* pPileup,
-                                            uint8_t ref, bool retain_mismatches);
+  void GetOverlappingFragmentFilteredPileup(
+      ReadBackedPileup* pPileup,
+      uint8_t ref, bool retain_mismatches);
 
   /**
    * Get the base count

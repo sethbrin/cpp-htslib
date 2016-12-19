@@ -19,7 +19,8 @@ namespace mutect {
 class SequenceUtils : public easehts::NonCopyable {
  public:
 
-  static bool IsReadHeavilySoftClipped(easehts::SAMBAMRecord* b, float threshold) {
+  static bool IsReadHeavilySoftClipped(easehts::SAMBAMRecord* b,
+                                       float threshold) {
     int total = 0;
     int clipped = 0;
     const std::vector<easehts::CigarElement>& cigars =
@@ -32,7 +33,9 @@ class SequenceUtils : public easehts::NonCopyable {
       }
     }
 
-    return (static_cast<float>(clipped) / static_cast<float>(total)) > threshold;
+    float rate = static_cast<float>(clipped) / static_cast<float>(total);
+
+    return rate >= threshold;
   }
 
   static std::array<int, 4> GetStrandContingencyTable(

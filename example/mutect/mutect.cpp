@@ -178,12 +178,12 @@ void Worker::PrepareResult(
   tumor_read_pile.InitPileups();
   normal_read_pile.InitPileups();
 
-  //printf("location: %d\n", location.GetStart() + 1);
-  //for (int i=0; i < tumor_read_pile.pileup_.Size(); i++) {
-  //  bam1_t* read = tumor_read_pile.pileup_[i].GetRead();
-  //  printf("%s-%d\n", easehts::SAMBAMRecord::GetQueryName(read),
-  //  easehts::SAMBAMRecord::GetSequenceLength(read));
-  //}
+//  printf("location: %d\n", location.GetStart() + 1);
+//  for (int i=0; i < tumor_read_pile.pileup_.Size(); i++) {
+//    easehts::SAMBAMRecord* read = tumor_read_pile.pileup_[i]->GetRead();
+//    printf("%s-%d\n", read->GetQueryName().c_str(),
+//    read->GetSequenceLength());
+//  }
   PrepareCondidate(up_ref, location, tumor_read_pile, normal_read_pile);
 }
 
@@ -393,7 +393,7 @@ void Worker::PrepareCondidate(
     LocusReadPile t2(SampleType::NORMAL, up_ref, 0,
                      0, false, false,
                      mutect_args_.enable_qscore_output.getValue());
-    FilterReads(ref_bases, location, window,
+    FilterReads(ref_bases, window, location,
                 tumor_read_pile.final_pileup_, true, &(t2.pileup_));
     t2.InitPileups();
 
@@ -426,7 +426,7 @@ void Worker::PrepareCondidate(
     easehts::gatk::ReadBackedPileup tmp_pileup;
 
     easehts::gatk::ReadBackedPileup forward_pileup;
-    FilterReads(ref_bases, location, window,
+    FilterReads(ref_bases, window, location,
                 tumor_read_pile.final_pileup_positive_strand_,
                 true, &(tmp_pileup));
     tmp_pileup.GetPileupByAndFilter(
@@ -443,7 +443,7 @@ void Worker::PrepareCondidate(
 
     tmp_pileup.Clear();
     easehts::gatk::ReadBackedPileup reverse_pileup;
-    FilterReads(ref_bases, location, window,
+    FilterReads(ref_bases, window, location,
                 tumor_read_pile.final_pileup_negative_strand_,
                 true, &(tmp_pileup));
     tmp_pileup.GetPileupByAndFilter(
@@ -679,7 +679,7 @@ void Worker::FilterReads(
     easehts::SAMBAMRecord* read = p->GetRead();
 
     int mismatch_quality_sum = CGAAlignmentUtils::MismatchesInRefWindow(
-        ref_bases, p, window, location, false, true);
+        ref_bases, p, location, window, false, true);
 
     // do we have too many mismatch overall?
     if (mismatch_quality_sum > kMaxReadMismatchQualityScoreSum) continue;
@@ -689,7 +689,6 @@ void Worker::FilterReads(
             read, mutect_args_.heavily_clipped_read_fraction.getValue())) {
       continue;
     }
-
     // was this read only placed because it's mate was uniquely placed?
     // (supplied by BWA)
     // TODO: current not support SAMTags

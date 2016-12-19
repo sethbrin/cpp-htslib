@@ -322,7 +322,7 @@ bool GATKPileupTraverse::HasNext() {
     PileupTracker* tracker = *iter;
     // LocusIteratorByState.java
     if (SAMBAMRecord::IsBaseInsideAdaptor(
-            tracker->read,
+            *(tracker->read),
             cur_coordianate_)) {
       ++iter;
       continue;

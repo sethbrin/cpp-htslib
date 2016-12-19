@@ -10,7 +10,7 @@
 namespace ncic {
 namespace mutect {
 
-const double CandidateMutation::kDoubleUnintialized = -DBL_MAX;
+const double CandidateMutation::kDoubleUnintialized = DBL_MAX;
 
 } // mutect
 } // ncic
