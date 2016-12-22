@@ -56,7 +56,7 @@ class SAMSequenceDictionary : public NonCopyable {
     return SAMSequenceDictionary(new_header);
   }
 
-  bam_hdr_t* GetRawHeader() {
+  bam_hdr_t* GetRawHeader() const {
     return header_;
   }
 

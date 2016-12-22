@@ -548,6 +548,7 @@ void Worker::PrepareCondidate(
     if (!m.IsRejected() ||
         (!mutect_args_.only_passing_calls.getValue())) {
       call_stats_generator_.WriteCallStats(m);
+      vcf_generator_.Add(m);
     }
   }
 
@@ -696,6 +697,7 @@ void Worker::FilterReads(
   }
 }
 
+
 void Mutect::Run() {
   easehts::GenomeLocParser parser(reference_.GetSequenceDictionary());
   std::vector<easehts::GenomeLoc> intervals =
@@ -704,6 +706,7 @@ void Mutect::Run() {
         mutect_args_.interval_padding.getValue());
 
   call_stats_generator_.WriteHeader();
+  vcf_generator_.WriteHeader(reference_.GetSequenceDictionary(), "b37");
   int thread_cnt = mutect_args_.thread_cnt.getValue();
 
   std::atomic<int> interval_index(0);
@@ -712,7 +715,8 @@ void Mutect::Run() {
   for (int i = 0; i < thread_cnt; i++) {
     workers.emplace_back([this, &intervals, &interval_index]() {
       Worker worker(this->mutect_args_, this->reference_,
-                    this->call_stats_generator_);
+                    this->call_stats_generator_,
+                    this->vcf_generator_);
       while (interval_index < intervals.size()) {
         size_t index = interval_index++;
         fprintf(stderr, "%d--%d-%d\n", index, intervals[index].GetStart(),

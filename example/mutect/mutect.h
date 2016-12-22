@@ -10,6 +10,7 @@
 #include "power_calculator.h"
 #include "candidate_mutation.h"
 #include "call_stats_generator.h"
+#include "vcf_generator.h"
 
 #include <easehts/genome_loc.h>
 #include <easehts/noncopyable.h>
@@ -35,10 +36,12 @@ class Worker : public easehts::NonCopyable {
  public:
   Worker(MutectArgs& mutect_args,
          easehts::IndexedFastaSequenceFile& reference,
-         CallStatsGenerator& call_stats_generator)
+         CallStatsGenerator& call_stats_generator,
+         VCFGenerator& vcf_generator)
     : mutect_args_(mutect_args),
     reference_(mutect_args_.reference.getValue()),
-    call_stats_generator_(call_stats_generator) {
+    call_stats_generator_(call_stats_generator),
+    vcf_generator_(vcf_generator) {
 
     // init tumor readers
     std::list<std::string> tumor_values = mutect_args_.tumor_files.getValue();
@@ -167,6 +170,7 @@ class Worker : public easehts::NonCopyable {
   MutectArgs& mutect_args_;
   easehts::IndexedFastaSequenceFile reference_;
   CallStatsGenerator& call_stats_generator_;
+  VCFGenerator& vcf_generator_;
 
   std::vector<easehts::BAMIndexReader> tumor_readers_;
   std::vector<easehts::BAMIndexReader> normal_readers_;
@@ -191,16 +195,20 @@ class Mutect : public easehts::NonCopyable {
     : mutect_args_(argc, argv),
     reference_(mutect_args_.reference.getValue()),
     call_stats_generator_(mutect_args_.enable_qscore_output.getValue(),
-                          mutect_args_.output_file.getValue()) {
+                          mutect_args_.output_file.getValue()),
+    vcf_generator_(mutect_args_.vcf_file.getValue()) {
   }
 
   void Run();
+
 
  private:
   // XXX the order is very important!!!! you should not change it!!!
   MutectArgs mutect_args_;
   easehts::IndexedFastaSequenceFile reference_;
   CallStatsGenerator call_stats_generator_;
+  VCFGenerator vcf_generator_;
+
 };
 
 

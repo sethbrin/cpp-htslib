@@ -5,6 +5,7 @@ set(SOURCE_FILES
     diploid_genotype.cpp
     diploid_SNP_genotype_likelihoods.cpp
     genome_loc.cpp
+    genotype.cpp
     pileup.cpp
     reference_sequence.cpp
     sam_bam_reader.cpp

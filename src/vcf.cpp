@@ -143,5 +143,28 @@ void VCFTraverse::PurgeOutofScopeRecords() {
   }
 }
 
+const std::string VCFConstants::kAncestralAlleleKey = "AA";
+const std::string VCFConstants::kAlleleCountKey = "AC";
+const std::string VCFConstants::kMleAlleleCountKey = "MLEAC";
+const std::string VCFConstants::kAlleleFrequenceKey = "AF";
+const std::string VCFConstants::kMleAlleleFrequenceKey = "MLEAF";
+const std::string VCFConstants::kMlePerSampleAlleleCountKey = "MLPSAC";
+const std::string VCFConstants::kMlePerSampleAlleleFractionKey = "MLPAF";
+const std::string VCFConstants::kAlleleNumberKey = "AN";
+const std::string VCFConstants::kRmsBaseQualityKey = "BQ";
+const std::string VCFConstants::kCigarKey = "CIGAR";
+const std::string VCFConstants::kDbsnpKey = "DB";
+const std::string VCFConstants::kDepthKey = "DP";
+const std::string VCFConstants::kDownsampleKey = "DS";
+const std::string VCFConstants::kExpectedAlleleCountKey = "EC";
+const std::string VCFConstants::kEndKey = "END";
+const std::string VCFConstants::kGenotypeFilterKey = "FT";
+const std::string VCFConstants::kGenotypeKey = "GT";
+const std::string VCFConstants::kGenotypePosteriorsKey = "GP";
+const std::string VCFConstants::kGenotypeQualityKey = "GQ";
+const std::string VCFConstants::kGenotypeAlleleDepths = "AD";
+const std::string VCFConstants::kGenotypePlKey = "PL";
+
+
 } // easehts
 } // ncic
