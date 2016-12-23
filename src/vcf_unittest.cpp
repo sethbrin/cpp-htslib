@@ -1,6 +1,9 @@
 #include "easehts/vcf.h"
 #include "easehts/unittest.h"
 
+#include <thread>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 using namespace ncic::easehts;
@@ -126,4 +129,31 @@ TEST(VCFTraverse, VCFIndexReader) {
   EXPECT_EQ(records.size(), 2);
 }
 
+TEST(SortingVariantContextWriter, normal) {
+  TEST_FILE("vcf/exampleDBSNP.vcf", filename);
+  TEST_FILE("vcf/sorting-example.vcf", output_filename);
+  VCFWriter vcf_writer(output_filename);
+  VCFIndexReader reader_header(filename);
+  SortingVariantContextWriter writer(&vcf_writer, 100000);
+  VCFHeader* header = writer.GetHeader();
+  header->Copy(reader_header.GetHeader());
+  writer.WriteHeader();
 
+  auto fun = [&filename, &writer]() {
+    VCFTextReader reader(filename);
+    while (reader.HasNext()) {
+      std::unique_ptr<VariantContext> record(reader.Next());
+      writer.Add(record);
+    }
+  };
+
+  std::vector<std::thread> threads;
+  int threads_cnt = 16;
+  for (int i = 0; i < threads_cnt; i++) {
+    threads.emplace_back(fun);
+  }
+  for (int i = 0; i < threads_cnt; i++) {
+    threads[i].join();
+  }
+  writer.Close();
+}

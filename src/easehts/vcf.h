@@ -16,15 +16,19 @@
 #include <htslib/tbx.h>
 
 #include <cassert>
+#include <cmath>
 #include <list>
 #include <memory>
-#include <unordered_map>
 #include <mutex>
+#include <queue>
+#include <set>
+#include <string>
+#include <unordered_map>
 
 namespace ncic {
 namespace easehts {
 
-class VCFHeader {
+class VCFHeader : public NonCopyable {
  public:
   explicit VCFHeader(const char *mode) {
     header_ = ::bcf_hdr_init(mode);
@@ -32,6 +36,10 @@ class VCFHeader {
 
   explicit VCFHeader(bcf_hdr_t* h)
     : header_(h) {}
+
+  void Copy(const VCFHeader& rhs) {
+    header_ = bcf_hdr_dup(rhs.header_);
+  }
 
   ~VCFHeader() {
     ::bcf_hdr_destroy(header_);
@@ -319,7 +327,7 @@ class VCFTextReader : public VCFReader {
       cur_record_ = record;
       return true;
     }
-    delete cur_record_;
+    delete record;
     return false;
   }
 
@@ -483,7 +491,7 @@ class VariantContextWriter : public NonCopyable {
   /**
    * Add a record to write
    */
-  virtual void Add(const VariantContext& vc) = 0;
+  virtual void Add(std::unique_ptr<VariantContext>& vc) = 0;
 
  protected:
   htsFile* fp_;
@@ -505,16 +513,158 @@ class VCFWriter : public VariantContextWriter {
     ERROR_COND(ret < 0, "Failed to write header");
   }
 
-  void Add(const VariantContext& vc) override {
+  void Add(std::unique_ptr<VariantContext>& vc) override {
     int ret = 0;
     {
       std::lock_guard<std::mutex> lock(mtx_);
-      ret = vcf_write(fp_, header_.GetRawHeader(), vc.GetRawRecord());
+      ret = bcf_write(fp_, header_.GetRawHeader(), vc->GetRawRecord());
     }
     ERROR_COND(ret < 0, "Failed to write record");
   }
 
  private:
+  std::mutex mtx_;
+};
+
+/**
+ * This class writes VCF files, allowing records to be passed in unsorted.
+ * It also enforces that it is never passed records of the same chromosome
+ * with any other chromosome in between them.
+ */
+class SortingVariantContextWriter {
+ public:
+  SortingVariantContextWriter(VariantContextWriter* inner_writer,
+                              int max_caching_start_distance,
+                              bool take_ownership_of_inner)
+    : inner_writer_(inner_writer),
+    max_caching_start_distance_(max_caching_start_distance),
+    take_ownership_of_inner_(take_ownership_of_inner) {
+    most_upstream_writable_loc_ = kBeforeMostUpstreamLoc;
+  }
+
+  SortingVariantContextWriter(VariantContextWriter* inner_writer,
+                              int max_caching_start_distance)
+    : SortingVariantContextWriter(inner_writer,
+                                  max_caching_start_distance, false) {}
+
+  ~SortingVariantContextWriter() {
+    Close();
+  }
+
+  void Close() {
+    StopWaitingToSort();
+    if (take_ownership_of_inner_) {
+      inner_writer_->Close();
+    }
+  }
+
+  VCFHeader* GetHeader() {
+    return inner_writer_->GetHeader();
+  }
+
+  void NoteCurrentRecord(VariantContext* vc) {
+    ERROR_COND(vc->GetPos() < most_upstream_writable_loc_,
+               utils::StringFormatCStr(
+                   "Permitted to write any record upstream of position %d, "
+                   "but a record at %d:%d was just added",
+                   most_upstream_writable_loc_, vc->GetContigId(),
+                   vc->GetPos()));
+    most_upstream_writable_loc_ = std::max(
+        0,
+        vc->GetPos() - max_caching_start_distance_);
+  }
+
+  /**
+   * Add a record to the file
+   *
+   * @param vc the variant context
+   */
+  void Add (std::unique_ptr<VariantContext>& vc) {
+    /**
+     * NOTE that the code below does not prevent the successive
+     * add()-ing of: (chr1, 10), (chr20, 200), (chr15, 100)
+     * since there is no implicit ordering of chromosomes:
+     */
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (!queue_.empty()) {
+      const std::unique_ptr<VariantContext>& first_record =
+        queue_.top();
+      if (vc->GetContigId() != first_record->GetContigId()) {
+        ERROR_COND(finished_chromosomes_.find(vc->GetContigId()) !=
+                   finished_chromosomes_.end(),
+                   utils::StringFormatCStr(
+                       "Add a record at %d:%d, but "
+                       "already finished with chromosome",
+                       vc->GetContigId(), vc->GetPos()));
+
+        finished_chromosomes_.insert(first_record->GetContigId());
+        StopWaitingToSort();
+      }
+    }
+
+    NoteCurrentRecord(vc.get());
+    queue_.push(std::move(vc));
+    EmitSafeRecords();
+  }
+
+  void WriteHeader() {
+    inner_writer_->WriteHeader();
+  }
+
+ private:
+  void StopWaitingToSort() {
+    EmitRecords(true);
+    most_upstream_writable_loc_ = 0;
+  }
+
+  void EmitSafeRecords() {
+    EmitRecords(false);
+  }
+
+  void EmitRecords(bool emit_unsafe) {
+    while(!queue_.empty()) {
+      const std::unique_ptr<VariantContext>& first_record =
+        queue_.top();
+
+      // No need to wait, waiting for nothing, or before what we're waiting for
+      if (emit_unsafe || first_record->GetPos()
+          <= most_upstream_writable_loc_) {
+        inner_writer_->Add(
+            const_cast<std::unique_ptr<VariantContext>&>(first_record));
+        queue_.pop();
+      } else {
+        break;
+      }
+    }
+  }
+
+  class VariantContextCmp {
+   public:
+    bool operator()(const std::unique_ptr<VariantContext>& lhs,
+                    const std::unique_ptr<VariantContext>& rhs) const {
+      return lhs->GetPos() > rhs->GetPos();
+    }
+  };
+
+  // The VCFWriter to which to actually write the sorted VCF records
+  VariantContextWriter* inner_writer_;
+  // the current queue of un-emitted records
+  std::priority_queue<std::unique_ptr<VariantContext>,
+    std::vector<std::unique_ptr<VariantContext>>, VariantContextCmp> queue_;
+
+  // The locus until which we are permitted to write out(inclusive)
+  int most_upstream_writable_loc_;
+  // the maximum START distance between records that we'll cache
+  int max_caching_start_distance_;
+  const static int kBeforeMostUpstreamLoc;
+
+  // The set of chromosomes already passed over and to which
+  // it is forbidden to return
+  std::set<int> finished_chromosomes_;
+
+  // Should we call inner_writer_.close() in close
+  bool take_ownership_of_inner_;
+
   std::mutex mtx_;
 };
 

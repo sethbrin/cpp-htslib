@@ -121,13 +121,13 @@ void VCFGenerator::WriteHeader(
 
 void VCFGenerator::Add(const CandidateMutation& candidate) {
   easehts::VCFHeader* header = writer_.GetHeader();
-  easehts::VariantContext vc;
-  vc.SetLocation(candidate.location);
+  std::unique_ptr<easehts::VariantContext> vc(new easehts::VariantContext());
+  vc->SetLocation(candidate.location);
   std::string ref_alt;
   ref_alt.push_back(candidate.ref_allele);
   ref_alt.push_back(',');
   ref_alt.push_back(candidate.alt_allele);
-  vc.UpdateAlleleStr(ref_alt, header->GetRawHeader());
+  vc->UpdateAlleleStr(ref_alt, header->GetRawHeader());
 
   int sample_cnt = 2;
   // two samples
@@ -140,54 +140,54 @@ void VCFGenerator::Add(const CandidateMutation& candidate) {
   tmpi[1] = INT32_VECTOR_MISSING;
   tmpi[2] = easehts::VariantContext::GenotypePhaseInt(0);
   tmpi[3] = easehts::VariantContext::GenotypePhaseInt(1);
-  vc.UpdateGenetype(tmpi.get(), 2*sample_cnt, header->GetRawHeader());
+  vc->UpdateGenetype(tmpi.get(), 2*sample_cnt, header->GetRawHeader());
 
   // Add AD
   tmpi[0] = candidate.initial_normal_ref_counts;
   tmpi[1] = candidate.initial_normal_alt_counts;
   tmpi[2] = candidate.initial_tumor_ref_counts;
   tmpi[3] = candidate.initial_tumor_alt_counts;
-  vc.UpdateFormat("AD", tmpi.get(), 2 * sample_cnt, header->GetRawHeader());
+  vc->UpdateFormat("AD", tmpi.get(), 2 * sample_cnt, header->GetRawHeader());
 
   // Add BQ
   if (candidate.initial_tumor_alt_counts > 0) {
     tmpi[0] = INT32_MISSING;
     tmpi[1] = candidate.initial_tumor_alt_quality_sum /
       candidate.initial_tumor_alt_counts;
-    vc.UpdateFormat("BQ", tmpi.get(), sample_cnt, header->GetRawHeader());
+    vc->UpdateFormat("BQ", tmpi.get(), sample_cnt, header->GetRawHeader());
   }
 
 
   // Add DP
   tmpi[0] = candidate.initial_normal_read_depth;
   tmpi[1] = candidate.initial_tumor_read_depth;
-  vc.UpdateFormat("DP", tmpi.get(), sample_cnt, header->GetRawHeader());
+  vc->UpdateFormat("DP", tmpi.get(), sample_cnt, header->GetRawHeader());
 
   std::unique_ptr<float[]> tmpf(
       new float[2 * sample_cnt]);
   // Add FA
   tmpf[0] = candidate.normal_F;
   tmpf[1] = candidate.tumor_F;
-  vc.UpdateFormat("FA", tmpf.get(), sample_cnt, header->GetRawHeader());
+  vc->UpdateFormat("FA", tmpf.get(), sample_cnt, header->GetRawHeader());
 
   if (candidate.dbsnp_VC != nullptr) {
-    vc.SetId(candidate.dbsnp_VC->GetId(), header->GetRawHeader());
-    vc.UpdateFlagInfo(easehts::VCFConstants::kDbsnpKey,
+    vc->SetId(candidate.dbsnp_VC->GetId(), header->GetRawHeader());
+    vc->UpdateFlagInfo(easehts::VCFConstants::kDbsnpKey,
                       header->GetRawHeader());
   }
 
 
   if (!candidate.rejected) {
-    vc.Filter("PASS", header->GetRawHeader());
-    vc.UpdateFlagInfo("SOMATIC", header->GetRawHeader());
-    vc.UpdateStringInfo("VT", "SNP", header->GetRawHeader());
+    vc->Filter("PASS", header->GetRawHeader());
+    vc->UpdateFlagInfo("SOMATIC", header->GetRawHeader());
+    vc->UpdateStringInfo("VT", "SNP", header->GetRawHeader());
 
     // Add SS
     tmpi[0] = 0;
     tmpi[1] = 2;
-    vc.UpdateFormat("SS", tmpi.get(), sample_cnt, header->GetRawHeader());
+    vc->UpdateFormat("SS", tmpi.get(), sample_cnt, header->GetRawHeader());
   } else {
-    vc.Filter("REJECT", header->GetRawHeader());
+    vc->Filter("REJECT", header->GetRawHeader());
   }
 
   writer_.Add(vc);

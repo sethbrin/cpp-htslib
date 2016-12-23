@@ -6,3 +6,5 @@ build/
 src/unittest.h
 test/localtestdata/
 cmake-build-debug/
+
+test/vcf/sorting-example.vcf

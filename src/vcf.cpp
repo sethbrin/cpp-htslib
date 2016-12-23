@@ -166,5 +166,7 @@ const std::string VCFConstants::kGenotypeAlleleDepths = "AD";
 const std::string VCFConstants::kGenotypePlKey = "PL";
 
 
+const int SortingVariantContextWriter::kBeforeMostUpstreamLoc = 0;
+
 } // easehts
 } // ncic
