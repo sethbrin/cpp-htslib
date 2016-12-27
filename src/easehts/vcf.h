@@ -33,6 +33,9 @@ class VCFHeader : public NonCopyable {
   explicit VCFHeader(const char *mode) {
     header_ = ::bcf_hdr_init(mode);
   }
+  explicit VCFHeader(const std::string& mode) {
+    header_ = ::bcf_hdr_init(mode.c_str());
+  }
 
   explicit VCFHeader(bcf_hdr_t* h)
     : header_(h) {}
@@ -112,6 +115,9 @@ class VariantContext {
  public:
   VariantContext() {
     record_ = ::bcf_init1();
+  }
+  VariantContext(bcf1_t* record) {
+    record_ = bcf_dup(record);
   }
 
   ~VariantContext() {
@@ -249,6 +255,7 @@ class VariantContext {
   // They are all predefined in the Allele class,
   // so we can use address to check the equality
   // std::unordered_map<Allele*, int> allele_map;
+
 };
 
 class VCFConstants {
@@ -454,10 +461,11 @@ class VCFTraverse {
 // the class write variant context
 class VariantContextWriter : public NonCopyable {
  public:
-  VariantContextWriter(const std::string& filename)
+  VariantContextWriter(const std::string& filename,
+                       const std::string& mode="w")
   : filename_(filename),
   header_("w") {
-    fp_ = hts_open(filename.c_str(),"w");
+    fp_ = hts_open(filename.c_str(), mode.c_str());
     ERROR_COND(fp_ == nullptr, utils::StringFormatCStr(
             "Error open filename %s to write", filename.c_str()));
     is_closed_ = false;
@@ -574,6 +582,9 @@ class SortingVariantContextWriter {
         vc->GetPos() - max_caching_start_distance_);
   }
 
+  void Add(std::unique_ptr<VariantContext>&& vc) {
+    Add(vc);
+  }
   /**
    * Add a record to the file
    *

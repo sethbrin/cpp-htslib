@@ -1,5 +1,5 @@
 set(MPILEUP_FILES
-        mpileup2.cpp
+        mpileup.cpp
         bam2bcf.c
         sample.c
         bedidx.c

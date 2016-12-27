@@ -34,6 +34,12 @@ extern "C" {
 #include <getopt.h>
 #include <htslib/hts.h>
 
+#define SAMTOOLS_VERSION "1.3.1-34-g26e1ea5"
+inline const char *samtools_version()
+{
+  return SAMTOOLS_VERSION;
+}
+
 typedef struct sam_global_args {
     htsFormat in;
     htsFormat out;
