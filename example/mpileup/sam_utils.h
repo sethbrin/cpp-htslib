@@ -14,6 +14,9 @@ extern "C" {
 void print_error(const char *subcommand, const char *format, ...) CHECK_PRINTF(2, 3);
 void print_error_errno(const char *subcommand, const char *format, ...) CHECK_PRINTF(2, 3);
 
+
+void kt_pipeline(int n_threads, void *(*func)(void*, int, void*), void *shared_data, int n_steps);
+
 #ifdef __cplusplus
 }
 #endif
