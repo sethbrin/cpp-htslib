@@ -517,6 +517,7 @@ static void ktp_worker_destory(ktp_worker_t* worker_data, int n) {
   for (int i = 0; i < n; i++) {
     delete worker_data->record_buf_vec[i];
   }
+  delete []worker_data->record_buf_vec;
   fai_destroy(worker_data->fai);
   free(worker_data->ref.ref[0]);
   free(worker_data->ref.ref[1]);
@@ -544,6 +545,10 @@ static void* read_records(ktp_aux_t* shared) {
   worker_data->fai = fai;
   worker_data->ref = MPLP_REF_INIT;
   worker_data->aux = shared;
+  worker_data->record_buf_vec = new mplp_record_t*[shared->n];
+  for (int i = 0; i < shared->n; i++) {
+    worker_data->record_buf_vec[i] = new mplp_record_t;
+  }
   do {
     int beg = shared->end + 1;
     if (shared->tid == -1 ||
@@ -557,7 +562,7 @@ static void* read_records(ktp_aux_t* shared) {
     }
 
     int tid = shared->tid;
-    int end = beg + shared->conf->chunk_size;
+    int end = beg + shared->conf->chunk_size - 1;
     shared->beg = beg;
     shared->end = end;
     worker_data->beg = beg;
@@ -582,10 +587,9 @@ static void* read_records(ktp_aux_t* shared) {
     }
 
     bool flag = false;
-    worker_data->record_buf_vec = new mplp_record_t*[shared->n];
     for (int i = 0; i < shared->n; i++) {
       std::list<bam1_t*>& item = shared->buffer_list[i];
-      mplp_record_t* record_buf = new mplp_record_t;
+      mplp_record_t* record_buf = worker_data->record_buf_vec[i];
 
       for (auto b : item) {
         if (b->core.tid == tid &&
@@ -623,6 +627,7 @@ static void* read_records(ktp_aux_t* shared) {
         ktp_worker_destory(worker_data, shared->n);
         return nullptr;
       }
+
       shared->tid = min_val>>32;
       shared->end = std::max(-1, (int32_t)min_val -
                              shared->conf->max_lreads - 1);
@@ -645,6 +650,11 @@ static void* read_records(ktp_aux_t* shared) {
 static void worker(ktp_aux_t* shared,
                    ktp_worker_t* worker_data,
                    int* ret) {
+
+  fprintf(stderr, "Process %s:%d-%d\n",
+          shared->h->target_name[((ktp_worker_t*)worker_data)->tid],
+          ((ktp_worker_t*)worker_data)->beg,
+          ((ktp_worker_t*)worker_data)->end);
   mplp_conf_t* conf = shared->conf;
   int n = shared->n;
   char** fn = shared->fn;
@@ -819,7 +829,7 @@ static void* process(void* shared, int step, void* _workers_data) {
         // Means that reach the end
         break;
       } else {
-        fprintf(stderr, "Process %s:%d-%d\n",
+        fprintf(stderr, "Load %s:%d-%d\n",
                 aux->h->target_name[((ktp_worker_t*)worker_data)->tid],
                 ((ktp_worker_t*)worker_data)->beg,
                 ((ktp_worker_t*)worker_data)->end);
@@ -836,10 +846,14 @@ static void* process(void* shared, int step, void* _workers_data) {
     return workers_data;
   } else {
     for (const auto& worker_data : workers_data->worker_data_vec) {
+      fprintf(stderr, "Write %s:%d-%d\n",
+              aux->h->target_name[((ktp_worker_t*)worker_data)->tid],
+              ((ktp_worker_t*)worker_data)->beg,
+              ((ktp_worker_t*)worker_data)->end);
       // Write the vcf record to the output
       for (auto record : worker_data->vcf_records) {
         bcf_write1(aux->bcf_fp, aux->bcf_hdr, record);
-        free(record);
+        bcf_destroy1(record);
       }
 
       // remove the pos in the buffer_list which before end
@@ -848,7 +862,7 @@ static void* process(void* shared, int step, void* _workers_data) {
         while (!item.empty() &&
                (item.front()->core.pos <
                 worker_data->end - aux->conf->max_lreads)) {
-          free(item.front());
+          bam_destroy1(item.front());
           item.pop_front();
         }
       }
@@ -936,6 +950,7 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
     sam_close(data[i]->fp);
     free(data[i]);
   }
+  bcf_hdr_destroy(bcf_hdr);
 
   // free the buffer_list
   for (int i = 0; i < n; ++i) {
@@ -1114,7 +1129,7 @@ static void print_usage(FILE *fp, const mplp_conf_t *mplp)
           "  -P, --platforms STR     comma separated list of platforms for indels [all]\n");
   fprintf(fp,
           "  -@, --threads INT       Number of BAM/CRAM compression threads [%d]\n"
-          "  -j --max_lreads INT     maximum length of reads[%d]\n"
+          "  -j --max_lreads INT     maximum alignment length of reads, alignmentEnd - alignmentStart[%d]\n"
           "  -c, --chunk_size INT    Number of reads should be process in single worker[%d]\n"
           , mplp->nthreads, mplp->max_lreads, mplp->chunk_size);
   sam_global_opt_help(fp, "-.--.");
@@ -1145,9 +1160,9 @@ int main(int argc, char *argv[])
   mplp.output_fname = NULL;
   mplp.all = 0;
   mplp.nthreads = 1;
-  // The default max read length is 150
-  mplp.max_lreads = 150;
-  mplp.chunk_size = 500;
+  // The default max read length is 300
+  mplp.max_lreads = 300;
+  mplp.chunk_size = 100000;
   sam_global_args_init(&mplp.ga);
 
   static const struct option lopts[] =

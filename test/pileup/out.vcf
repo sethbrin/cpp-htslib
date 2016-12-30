@@ -1,7 +1,7 @@
 ##fileformat=VCFv4.2
 ##FILTER=<ID=PASS,Description="All filters passed">
 ##samtoolsVersion=1.3.1-34-g26e1ea5+htslib-1.3.2-176-gafd9b56-dirty
-##samtoolsCommand=samtools mpileup -uvf /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.ref.fa -@ 4 -o /home/zp/work/rnaseq/cpp-htslib/test//pileup//out.vcf /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.1.bam /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.2.bam /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.3.bam
+##samtoolsCommand=samtools mpileup -uvf /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.ref.fa -@ 4 --chunk_size 500 -o /home/zp/work/rnaseq/cpp-htslib/test//pileup//out.vcf /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.1.bam /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.2.bam /home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.3.bam
 ##reference=file:///home/zp/work/rnaseq/cpp-htslib/test//pileup//mpileup.ref.fa
 ##contig=<ID=1,length=249250621>
 ##contig=<ID=2,length=243199373>
