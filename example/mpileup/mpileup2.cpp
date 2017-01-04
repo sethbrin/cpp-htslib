@@ -127,6 +127,42 @@ void bed_destroy(void *_h);
 int bed_overlap(const void *_h, const char *chr, int beg, int end);
 
 typedef struct {
+  char *ref;
+  int ref_id;
+  int ref_len;
+} ref_t;
+
+typedef struct {
+  ref_t* refs;
+} mplp_ref_t;
+
+void ref_init(ref_t& ref) {
+  ref.ref = NULL;
+  ref.ref_id = -1;
+  ref.ref_len = 0;
+}
+
+void ref_destory(ref_t& ref) {
+  free(ref.ref);
+  ref.ref = NULL;
+}
+
+void mplp_ref_init(mplp_ref_t* ref, int n) {
+  assert(n>0);
+  ref->refs = (ref_t*)malloc(n * sizeof(ref_t));
+  for (int i = 0; i < n; i++) {
+    ref_init(ref->refs[i]);
+  }
+}
+
+void mplp_ref_destory(mplp_ref_t* ref, int n) {
+  for (int i = 0; i < n; i++) {
+    ref_destory(ref->refs[i]);
+  }
+  free(ref->refs);
+}
+
+typedef struct {
     int min_mq, flag, min_baseQ, capQ_thres, max_depth, max_indel_depth, fmt_flag, all;
     int rflag_require, rflag_filter;
     int openQ, extQ, tandemQ, min_support; // for indels
@@ -139,22 +175,10 @@ typedef struct {
     int nthreads;
     int max_lreads;
     int chunk_size;
+    faidx_t *fai;
+    mplp_ref_t ref;
+    pthread_mutex_t mutex;
 } mplp_conf_t;
-
-typedef struct {
-    char *ref[2];
-    int ref_id[2];
-    int ref_len[2];
-} mplp_ref_t;
-
-#define MPLP_REF_INIT {{NULL,NULL},{-1,-1},{0,0}}
-
-// buffer record
-typedef struct {
-  std::vector<bam1_t*> records;
-  int record_idx;
-} mplp_record_t;
-
 
 typedef struct {
     samFile *fp;
@@ -187,6 +211,15 @@ typedef struct {
 
 } ktp_aux_t;
 
+// buffer record
+typedef struct {
+  std::vector<bam1_t*> records;
+  int record_idx;
+  mplp_aux_t* data;
+  void* worker_data;
+} mplp_record_t;
+
+
 // store the data
 typedef struct {
   int tid;
@@ -195,9 +228,7 @@ typedef struct {
   std::vector<bcf1_t*> vcf_records;
   mplp_record_t** record_buf_vec;
 
-  mplp_ref_t ref;
   ktp_aux_t* aux;
-  faidx_t *fai;
 } ktp_worker_t;
 
 typedef struct {
@@ -205,12 +236,14 @@ typedef struct {
   std::vector<ktp_worker_t*> worker_data_vec;
 } ktp_workers_t;
 
-static int mplp_get_ref(ktp_worker_t *worker_data, int tid,  char **ref, int *ref_len) {
-    mplp_ref_t* r = &(worker_data->ref);
+// double buffer avoid lock
+// NOTE no three reference process in a time, otherwise thread-safety
+static int mplp_get_ref(ktp_aux_t *shared, int tid,  char **ref, int *ref_len) {
+    ref_t* r = shared->conf->ref.refs + tid;
 
     //printf("get ref %d {%d/%p, %d/%p}\n", tid, r->ref_id[0], r->ref[0], r->ref_id[1], r->ref[1]);
 
-    if (!worker_data->fai) {
+    if (!shared->conf->fai) {
         *ref = NULL;
         return 0;
     }
@@ -218,47 +251,32 @@ static int mplp_get_ref(ktp_worker_t *worker_data, int tid,  char **ref, int *re
     // Do we need to reference count this so multiple mplp_aux_t can
     // track which references are in use?
     // For now we just cache the last two. Sufficient?
-    if (tid == r->ref_id[0]) {
-        *ref = r->ref[0];
-        *ref_len = r->ref_len[0];
-        return 1;
-    }
-    if (tid == r->ref_id[1]) {
-        // Last, swap over
-        int tmp;
-        tmp = r->ref_id[0];  r->ref_id[0]  = r->ref_id[1];  r->ref_id[1]  = tmp;
-        tmp = r->ref_len[0]; r->ref_len[0] = r->ref_len[1]; r->ref_len[1] = tmp;
-
-        char *tc;
-        tc = r->ref[0]; r->ref[0] = r->ref[1]; r->ref[1] = tc;
-        *ref = r->ref[0];
-        *ref_len = r->ref_len[0];
+    if (r->ref) {
+        *ref = r->ref;
+        *ref_len = r->ref_len;
         return 1;
     }
 
-    // New, so migrate to old and load new
-    free(r->ref[1]);
-    r->ref[1]     = r->ref[0];
-    r->ref_id[1]  = r->ref_id[0];
-    r->ref_len[1] = r->ref_len[0];
+    pthread_mutex_lock(&shared->conf->mutex);
+    r->ref_id = tid;
+    r->ref = faidx_fetch_seq(shared->conf->fai,
+                             shared->h->target_name[r->ref_id],
+                             0,
+                             INT_MAX,
+                             &r->ref_len);
 
-    r->ref_id[0] = tid;
-    r->ref[0] = faidx_fetch_seq(worker_data->fai,
-                                worker_data->aux->h->target_name[r->ref_id[0]],
-                                0,
-                                INT_MAX,
-                                &r->ref_len[0]);
-
-    if (!r->ref[0]) {
-        r->ref[0] = NULL;
-        r->ref_id[0] = -1;
-        r->ref_len[0] = 0;
+    if (!r->ref) {
+        r->ref = NULL;
+        r->ref_id = -1;
+        r->ref_len = 0;
         *ref = NULL;
+        pthread_mutex_unlock(&shared->conf->mutex);
         return 0;
     }
 
-    *ref = r->ref[0];
-    *ref_len = r->ref_len[0];
+    *ref = r->ref;
+    *ref_len = r->ref_len;
+    pthread_mutex_unlock(&shared->conf->mutex);
     return 1;
 }
 
@@ -276,74 +294,80 @@ print_empty_pileup(FILE *fp, const mplp_conf_t *conf, const char *tname,
     putc('\n', fp);
 }
 
-static int mplp_func(void *data, bam1_t *b)
+static int mplp_func(void *data, bam1_t *record)
 {
   mplp_record_t* record_buf = (mplp_record_t*)data;
+  mplp_aux_t *ma = (mplp_aux_t*)record_buf->data;
+  ktp_worker_t* worker_data = (ktp_worker_t*)record_buf->worker_data;
+  bam1_t* b = nullptr;
+  int ret, skip = 0, ref_len;
+  char *ref;
+  do {
+    int has_ref;
+    if (record_buf->record_idx < record_buf->records.size()) {
+      b = record_buf->records[record_buf->record_idx++];
+      ret = 1;
+    } else {
+      ret = -1;
+    }
+    if (ret < 0) break;
+    // The 'B' cigar operation is not part of the specification, considering as obsolete.
+    //  bam_remove_B(b);
+    if (b->core.tid < 0 || (b->core.flag&BAM_FUNMAP)) { // exclude unmapped reads
+      skip = 1;
+      continue;
+    }
+    if (ma->conf->rflag_require && !(ma->conf->rflag_require&b->core.flag)) { skip = 1; continue; }
+    if (ma->conf->rflag_filter && ma->conf->rflag_filter&b->core.flag) { skip = 1; continue; }
+    if (ma->conf->bed && ma->conf->all == 0) { // test overlap
+      skip = !bed_overlap(ma->conf->bed, ma->h->target_name[b->core.tid], b->core.pos, bam_endpos(b));
+      if (skip) continue;
+    }
+    if (ma->conf->rghash) { // exclude read groups
+      uint8_t *rg = bam_aux_get(b, "RG");
+      skip = (rg && khash_str2int_get(ma->conf->rghash, (const char*)(rg+1), NULL)==0);
+      if (skip) continue;
+    }
+    if (ma->conf->flag & MPLP_ILLUMINA13) {
+      int i;
+      uint8_t *qual = bam_get_qual(b);
+      for (i = 0; i < b->core.l_qseq; ++i)
+        qual[i] = qual[i] > 31? qual[i] - 31 : 0;
+    }
 
-  if (record_buf->record_idx < record_buf->records.size()) {
-    bam_copy1(b, record_buf->records[record_buf->record_idx++]);
-    return 1;
-  } else {
-    return -1;
-  }
+    if (ma->conf->fai && b->core.tid >= 0) {
+      has_ref = mplp_get_ref(worker_data->aux, b->core.tid, &ref, &ref_len);
+      if (has_ref && ref_len <= b->core.pos) { // exclude reads outside of the reference sequence
+        fprintf(stderr,"[%s] Skipping because %d is outside of %d [ref:%d]\n",
+                __func__, b->core.pos, ref_len, b->core.tid);
+        skip = 1;
+        continue;
+      }
+    } else {
+      has_ref = 0;
+    }
+
+    skip = 0;
+    if (has_ref && (ma->conf->flag&MPLP_REALN)) sam_prob_realn(b, ref, ref_len, (ma->conf->flag & MPLP_REDO_BAQ)? 7 : 3);
+    if (has_ref && ma->conf->capQ_thres > 10) {
+      int q = sam_cap_mapq(b, ref, ref_len, ma->conf->capQ_thres);
+      if (q < 0) skip = 1;
+      else if (b->core.qual > q) b->core.qual = q;
+    }
+    if (b->core.qual < ma->conf->min_mq) skip = 1;
+    else if ((ma->conf->flag&MPLP_NO_ORPHAN) && (b->core.flag&BAM_FPAIRED) && !(b->core.flag&BAM_FPROPER_PAIR)) skip = 1;
+  } while (skip);
+  if (b && ret >= 0)
+    bam_copy1(record, b);
+  return ret;
 }
 
-static int read_next(void *data, bam1_t *b, ktp_worker_t* worker_data)
+static int read_next(void *data, bam1_t *b)
 {
-    char *ref;
-    mplp_aux_t *ma = (mplp_aux_t*)data;
-    int ret, skip = 0, ref_len;
-    do {
-        int has_ref;
-        ret = sam_read1(ma->fp, ma->h, b);
-        if (ret < 0) break;
-        // The 'B' cigar operation is not part of the specification, considering as obsolete.
-        //  bam_remove_B(b);
-        if (b->core.tid < 0 || (b->core.flag&BAM_FUNMAP)) { // exclude unmapped reads
-            skip = 1;
-            continue;
-        }
-        if (ma->conf->rflag_require && !(ma->conf->rflag_require&b->core.flag)) { skip = 1; continue; }
-        if (ma->conf->rflag_filter && ma->conf->rflag_filter&b->core.flag) { skip = 1; continue; }
-        if (ma->conf->bed && ma->conf->all == 0) { // test overlap
-            skip = !bed_overlap(ma->conf->bed, ma->h->target_name[b->core.tid], b->core.pos, bam_endpos(b));
-            if (skip) continue;
-        }
-        if (ma->conf->rghash) { // exclude read groups
-            uint8_t *rg = bam_aux_get(b, "RG");
-            skip = (rg && khash_str2int_get(ma->conf->rghash, (const char*)(rg+1), NULL)==0);
-            if (skip) continue;
-        }
-        if (ma->conf->flag & MPLP_ILLUMINA13) {
-            int i;
-            uint8_t *qual = bam_get_qual(b);
-            for (i = 0; i < b->core.l_qseq; ++i)
-                qual[i] = qual[i] > 31? qual[i] - 31 : 0;
-        }
-
-        if (worker_data->fai && b->core.tid >= 0) {
-            has_ref = mplp_get_ref(worker_data, b->core.tid, &ref, &ref_len);
-            if (has_ref && ref_len <= b->core.pos) { // exclude reads outside of the reference sequence
-                fprintf(stderr,"[%s] Skipping because %d is outside of %d [ref:%d]\n",
-                        __func__, b->core.pos, ref_len, b->core.tid);
-                skip = 1;
-                continue;
-            }
-        } else {
-            has_ref = 0;
-        }
-
-        skip = 0;
-        if (has_ref && (ma->conf->flag&MPLP_REALN)) sam_prob_realn(b, ref, ref_len, (ma->conf->flag & MPLP_REDO_BAQ)? 7 : 3);
-        if (has_ref && ma->conf->capQ_thres > 10) {
-            int q = sam_cap_mapq(b, ref, ref_len, ma->conf->capQ_thres);
-            if (q < 0) skip = 1;
-            else if (b->core.qual > q) b->core.qual = q;
-        }
-        if (b->core.qual < ma->conf->min_mq) skip = 1;
-        else if ((ma->conf->flag&MPLP_NO_ORPHAN) && (b->core.flag&BAM_FPAIRED) && !(b->core.flag&BAM_FPROPER_PAIR)) skip = 1;
-    } while (skip);
-    return ret;
+  mplp_aux_t *ma = (mplp_aux_t*)data;
+  int ret;
+  ret = sam_read1(ma->fp, ma->h, b);
+  return ret;
 }
 
 static void group_smpl(mplp_pileup_t *m, bam_sample_t *sm, kstring_t *buf,
@@ -518,9 +542,6 @@ static void ktp_worker_destory(ktp_worker_t* worker_data, int n) {
     delete worker_data->record_buf_vec[i];
   }
   delete []worker_data->record_buf_vec;
-  fai_destroy(worker_data->fai);
-  free(worker_data->ref.ref[0]);
-  free(worker_data->ref.ref[1]);
   delete worker_data;
 }
 
@@ -530,20 +551,12 @@ static void ktp_worker_destory(ktp_worker_t* worker_data, int n) {
  *
  */
 static void* read_records(ktp_aux_t* shared) {
-  faidx_t* fai = fai_load(shared->conf->fai_fname);
-  if (fai == NULL) {
-    fprintf(stderr, "Failed to load frequence\n");
-    exit(EXIT_FAILURE);
-  }
-
   bam_hdr_t* h = shared->h;
   if (shared->tid >= h->n_targets) {
     return nullptr;
   }
 
   ktp_worker_t* worker_data = new ktp_worker_t;
-  worker_data->fai = fai;
-  worker_data->ref = MPLP_REF_INIT;
   worker_data->aux = shared;
   worker_data->record_buf_vec = new mplp_record_t*[shared->n];
   for (int i = 0; i < shared->n; i++) {
@@ -575,7 +588,7 @@ static void* read_records(ktp_aux_t* shared) {
       bam1_t* b = nullptr;
       do {
         b = bam_init1();
-        int ret = read_next(ma, b, worker_data);
+        int ret = read_next(ma, b);
         if (ret < 0) {
           bam_destroy1(b);
           break;
@@ -602,6 +615,8 @@ static void* read_records(ktp_aux_t* shared) {
         flag = true;
       }
       record_buf->record_idx = 0;
+      record_buf->worker_data = worker_data;
+      record_buf->data = worker_data->aux->data[i];
       worker_data->record_buf_vec[i] = record_buf;
     }
 
@@ -743,7 +758,7 @@ static void worker(ktp_aux_t* shared,
   while ( (*ret=bam_mplp_auto(iter, &tid, &pos, n_plp, plp)) > 0) {
     if (pos < beg || pos > end) continue; // out of the region requested
     cover = true;
-    mplp_get_ref(worker_data, tid, &ref, &ref_len);
+    mplp_get_ref(shared, tid, &ref, &ref_len);
     //printf("tid=%d len=%d ref=%p/%s\n", tid, ref_len, ref, ref);
     int total_depth, _ref0, ref16;
     if (conf->bed && tid >= 0 && !bed_overlap(conf->bed, h->target_name[tid], pos, pos+1)) continue;
@@ -866,7 +881,13 @@ static void* process(void* shared, int step, void* _workers_data) {
           item.pop_front();
         }
       }
+      // free reference
+      for (int i = 0; i < worker_data->tid; i++) {
+        ref_destory(aux->conf->ref.refs[i]);
+      }
+
       ktp_worker_destory(worker_data, aux->n);
+
     }
     delete workers_data;
     return nullptr;
@@ -916,6 +937,7 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
   }
   bcf_hdr_t* bcf_hdr = bcf_hdr_init("w");
   write_header(conf, n, fn, bcf_hdr, bcf_fp, sm, rghash, h, data);
+  mplp_ref_init(&conf->ref, h->n_targets);
 
   ktp_aux_t aux;
   aux.conf = conf;
@@ -945,6 +967,7 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
   hts_close(bcf_fp);
   bam_smpl_destroy(sm);
   bcf_call_del_rghash(rghash);
+  mplp_ref_destory(&conf->ref, h->n_targets);
   bam_hdr_destroy(h);
   for (int i = 0; i < n; ++i) {
     sam_close(data[i]->fp);
@@ -1234,6 +1257,8 @@ int main(int argc, char *argv[])
       case  3 : mplp.output_fname = optarg; break;
       case  4 : mplp.openQ = atoi(optarg); break;
       case 'f':
+                mplp.fai = fai_load(optarg);
+                if (mplp.fai == NULL) return 1;
                 mplp.fai_fname = optarg;
                 break;
       case 'd': mplp.max_depth = atoi(optarg); break;
@@ -1302,9 +1327,12 @@ int main(int argc, char *argv[])
                 return 1;
     }
   }
-  if (mplp.ga.reference) {
+  if (!mplp.fai && mplp.ga.reference) {
     mplp.fai_fname = mplp.ga.reference;
+    mplp.fai = fai_load(mplp.fai_fname);
+    if (mplp.fai == NULL) return 1;
   }
+  pthread_mutex_init(&mplp.mutex, 0);
 
   if ( !(mplp.flag&MPLP_REALN) && mplp.flag&MPLP_REDO_BAQ )
   {
@@ -1329,6 +1357,9 @@ int main(int argc, char *argv[])
     ret = mpileup(&mplp, argc - optind, argv + optind);
   if (mplp.rghash) khash_str2int_destroy_free(mplp.rghash);
   free(mplp.reg); free(mplp.pl_list);
+  if (mplp.fai) fai_destroy(mplp.fai);
+  pthread_mutex_destroy(&mplp.mutex);
+
   if (mplp.bed) bed_destroy(mplp.bed);
   return ret;
 }

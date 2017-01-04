@@ -4,7 +4,7 @@ project(easehtslib)
 
 set(CXX_FLAGS
         -g
-        -O0
+        -O3
         #-pg
         -fpermissive
         #-Wall
