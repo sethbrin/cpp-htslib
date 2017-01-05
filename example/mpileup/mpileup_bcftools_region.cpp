@@ -1,4 +1,4 @@
-/*  bam_plcmd.c -- mpileup subcommand.
+/*  mpileup_bcftools_region.cpp -- combine mpileup and bcftools mcall commands.
 
     Copyright (C) 2008-2015 Genome Research Ltd.
     Portions copyright (C) 2009-2012 Broad Institute.
@@ -44,8 +44,11 @@ DEALINGS IN THE SOFTWARE.  */
 #include "sam_utils.h"
 #include "sam_opts.h"
 #include "kthread.h"
+#include "call.h"
+#include "ploidy.h"
 
 #include <easehts/utils.h>
+#include <easehts/vcf.h>
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -178,6 +181,7 @@ typedef struct {
     faidx_t *fai;
     mplp_ref_t ref;
     pthread_mutex_t mutex;
+
 } mplp_conf_t;
 
 typedef struct {
@@ -199,24 +203,26 @@ typedef struct {
   int n;
   char** fn;
   bcf_hdr_t* bcf_hdr;
-  htsFile *bcf_fp;
   bam_sample_t* sm;
   void* rghash;
   int tid;
   int beg;
   int end;
 
-  // store the traverse record
-  std::vector<std::list<bam1_t*>> buffer_list;
+  call_t call;
+  ncic::easehts::VCFWriter* writer;
 
 } ktp_aux_t;
 
 // buffer record
 typedef struct {
-  std::vector<bam1_t*> records;
-  int record_idx;
   mplp_aux_t* data;
   void* worker_data;
+  hts_itr_t *iter;
+  hts_idx_t *idx;
+  samFile *fp;
+  bam1_t* b;
+  bool b_set;
 } mplp_record_t;
 
 
@@ -225,7 +231,6 @@ typedef struct {
   int tid;
   int beg;
   int end;
-  std::vector<bcf1_t*> vcf_records;
   mplp_record_t** record_buf_vec;
 
   ktp_aux_t* aux;
@@ -264,7 +269,6 @@ static int mplp_get_ref(ktp_aux_t *shared, int tid,  char **ref, int *ref_len) {
       pthread_mutex_unlock(&shared->conf->mutex);
       return 1;
     }
-
     r->ref_id = tid;
     r->ref = faidx_fetch_seq(shared->conf->fai,
                              shared->h->target_name[r->ref_id],
@@ -301,23 +305,23 @@ print_empty_pileup(FILE *fp, const mplp_conf_t *conf, const char *tname,
     putc('\n', fp);
 }
 
-static int mplp_func(void *data, bam1_t *record)
+static int mplp_func(void *data, bam1_t *b)
 {
   mplp_record_t* record_buf = (mplp_record_t*)data;
   mplp_aux_t *ma = (mplp_aux_t*)record_buf->data;
   ktp_worker_t* worker_data = (ktp_worker_t*)record_buf->worker_data;
-  bam1_t* b = nullptr;
-  int ret, skip = 0, ref_len;
+  int ret = -1, skip = 0, ref_len;
   char *ref;
   do {
     int has_ref;
-    if (record_buf->record_idx < record_buf->records.size()) {
-      b = record_buf->records[record_buf->record_idx++];
+    if (record_buf->b_set) {
+      bam_copy1(b, record_buf->b);
+      record_buf->b_set = false;
       ret = 1;
     } else {
-      ret = -1;
+      ret = sam_itr_next(record_buf->fp, record_buf->iter, b);
+      if (ret < 0) break;
     }
-    if (ret < 0) break;
     // The 'B' cigar operation is not part of the specification, considering as obsolete.
     //  bam_remove_B(b);
     if (b->core.tid < 0 || (b->core.flag&BAM_FUNMAP)) { // exclude unmapped reads
@@ -364,16 +368,6 @@ static int mplp_func(void *data, bam1_t *record)
     if (b->core.qual < ma->conf->min_mq) skip = 1;
     else if ((ma->conf->flag&MPLP_NO_ORPHAN) && (b->core.flag&BAM_FPAIRED) && !(b->core.flag&BAM_FPROPER_PAIR)) skip = 1;
   } while (skip);
-  if (b && ret >= 0)
-    bam_copy1(record, b);
-  return ret;
-}
-
-static int read_next(void *data, bam1_t *b)
-{
-  mplp_aux_t *ma = (mplp_aux_t*)data;
-  int ret;
-  ret = sam_read1(ma->fp, ma->h, b);
   return ret;
 }
 
@@ -409,7 +403,6 @@ static void group_smpl(mplp_pileup_t *m, bam_sample_t *sm, kstring_t *buf,
  */
 static void write_header(mplp_conf_t*& conf, int n, char **fn,
                          bcf_hdr_t* bcf_hdr,
-                         htsFile* bcf_fp,
                          bam_sample_t*& sm,
                          void*& rghash, bam_hdr_t*& h,
                          mplp_aux_t** data) {
@@ -534,8 +527,8 @@ static void write_header(mplp_conf_t*& conf, int n, char **fn,
     for (int i=0; i<sm->n; i++)
       bcf_hdr_add_sample(bcf_hdr, sm->smpl[i]);
     bcf_hdr_add_sample(bcf_hdr, NULL);
-    bcf_hdr_write(bcf_fp, bcf_hdr);
     // End of BCF header creation
+    if ( bcf_hdr->dirty ) bcf_hdr_sync(bcf_hdr);
 
   }
   else {
@@ -546,10 +539,62 @@ static void write_header(mplp_conf_t*& conf, int n, char **fn,
 
 static void ktp_worker_destory(ktp_worker_t* worker_data, int n) {
   for (int i = 0; i < n; i++) {
-    delete worker_data->record_buf_vec[i];
+    mplp_record_t* record_buf = worker_data->record_buf_vec[i];
+    if (record_buf->iter) hts_itr_destroy(record_buf->iter);
+    hts_idx_destroy(record_buf->idx);
+    bam_destroy1(record_buf->b);
+    sam_close(record_buf->fp);
+    delete record_buf;
   }
   delete []worker_data->record_buf_vec;
   delete worker_data;
+}
+
+/**
+ * Decide if the current tid has reads
+ */
+static bool decide_next_tid(ktp_aux_t* shared, ktp_worker_t* worker_data) {
+  int min_val = INT_MAX;
+  bam1_t* record = bam_init1();
+  bool res = false;
+  do {
+    shared->tid ++;
+    if (shared->tid >= shared->h->n_targets) {
+      break;
+    }
+    for (int i = 0; i < shared->n; i++) {
+      mplp_record_t* record_buf = worker_data->record_buf_vec[i];
+      // NOTE the end should +1
+      if ( (record_buf->iter=sam_itr_queryi(
+                  record_buf->idx, shared->tid,
+                  0,
+                  shared->h->target_len[shared->tid])) == 0) {
+        fprintf(stderr, "[E::%s] fail to parse reference '%s' with %s\n",
+                __func__, shared->h->target_name[shared->tid], shared->fn[i]);
+        exit(EXIT_FAILURE);
+      }
+
+      int ret = sam_itr_next(record_buf->fp, record_buf->iter, record);
+      if (ret >= 0) {
+        int cur = record->core.pos;
+        if (cur < min_val) {
+          min_val = cur;
+        }
+      }
+      hts_itr_destroy(record_buf->iter);
+      record_buf->iter = nullptr;
+    }
+
+    if (min_val == INT_MAX) {
+      continue;
+    }
+
+    shared->beg = min_val;
+    res = true;
+    break;
+  } while (true);
+  bam_destroy1(record);
+  return res;
 }
 
 /**
@@ -557,106 +602,114 @@ static void ktp_worker_destory(ktp_worker_t* worker_data, int n) {
  * Store the read record in the region tid:beg-end
  *
  */
-static void* read_records(ktp_aux_t* shared) {
+static bool read_records(ktp_aux_t* shared, ktp_worker_t* worker_data,
+                         std::mutex& mtx) {
   bam_hdr_t* h = shared->h;
-  if (shared->tid >= h->n_targets) {
-    return nullptr;
-  }
 
-  ktp_worker_t* worker_data = new ktp_worker_t;
-  worker_data->aux = shared;
-  worker_data->record_buf_vec = new mplp_record_t*[shared->n];
-  for (int i = 0; i < shared->n; i++) {
-    worker_data->record_buf_vec[i] = new mplp_record_t;
-  }
   do {
-    int beg = shared->end + 1;
-    if (shared->tid == -1 ||
-        beg >= h->target_len[shared->tid]) {
-      shared->tid++;
-      beg = 0;
+    int beg, end, tid;
+    {
+      std::lock_guard<std::mutex> lock(mtx);
       if (shared->tid >= h->n_targets) {
-        ktp_worker_destory(worker_data, shared->n);
-        return nullptr;
+        return false;
       }
-    }
-
-    int tid = shared->tid;
-    int end = beg + shared->conf->chunk_size - 1;
-    shared->beg = beg;
-    shared->end = end;
-    worker_data->beg = beg;
-    worker_data->end = end;
-    worker_data->tid = tid;
-
-    // load the data which largger than worker
-    for (int i = 0; i < shared->n; i++) {
-      mplp_aux_t* ma = shared->data[i];
-      bam1_t* b = nullptr;
-      do {
-        b = bam_init1();
-        int ret = read_next(ma, b);
-        if (ret < 0) {
-          bam_destroy1(b);
-          break;
-        }
-        // Add to the buffer_list
-        shared->buffer_list[i].push_back(b);
-      } while (b->core.tid == shared->tid &&
-               b->core.pos <= shared->end);
+      beg = shared->end + 1;
+      if (shared->tid == -1 ||
+          beg >= h->target_len[shared->tid]) {
+        do {
+          // decide if the current tid has reads
+          // add set the beg
+          if (decide_next_tid(shared, worker_data)) {
+            beg = shared->beg;
+            break;
+          } else {
+            return false;
+          }
+        } while (true);
+      }
+      tid = shared->tid;
+      end = beg + shared->conf->chunk_size - 1;
+      shared->beg = beg;
+      shared->end = end;
+      worker_data->beg = beg;
+      worker_data->end = end;
+      worker_data->tid = tid;
     }
 
     bool flag = false;
     for (int i = 0; i < shared->n; i++) {
-      std::list<bam1_t*>& item = shared->buffer_list[i];
       mplp_record_t* record_buf = worker_data->record_buf_vec[i];
+      // NOTE the end should +1
+      if (record_buf->iter) hts_itr_destroy(record_buf->iter);
+      if ( (record_buf->iter=sam_itr_queryi(
+                  record_buf->idx, tid,
+                  beg - shared->conf->max_lreads,
+                  end + shared->conf->max_lreads+1)) == 0) {
+        fprintf(stderr, "[E::%s] fail to parse region '%d:%d-%d' with %s\n",
+                __func__, tid, beg, end, shared->fn[i]);
+        exit(EXIT_FAILURE);
+      }
+      int ret = sam_itr_next(record_buf->fp, record_buf->iter, record_buf->b);
 
-      for (auto b : item) {
-        if (b->core.tid == tid &&
-            b->core.pos >= beg - shared->conf->max_lreads &&
-            b->core.pos <= end + shared->conf->max_lreads) {
-          record_buf->records.push_back(b);
-        }
-      }
-      if (!record_buf->records.empty()) {
+      if (ret >= 0) {
+        record_buf->b_set = true;
         flag = true;
+      } else {
+        hts_itr_destroy(record_buf->iter);
+        record_buf->iter = nullptr;
       }
-      record_buf->record_idx = 0;
+
       record_buf->worker_data = worker_data;
       record_buf->data = worker_data->aux->data[i];
       worker_data->record_buf_vec[i] = record_buf;
     }
 
     if (flag) {
-      return worker_data;
-    } else {
-      // jump to the right postion
-      uint64_t min_val = uint64_t(-1);
-      for (int i = 0; i < shared->n; i++) {
-        auto& buffer_list = shared->buffer_list[i];
-        if (!buffer_list.empty()) {
-          bam1_t *b = buffer_list.front();
-          uint64_t cur = (uint64_t)(b->core.tid)<<32 | b->core.pos;
-          if (cur < min_val) {
-            min_val = cur;
-          }
-        }
-      }
-
-      uint64_t cur_pos = (uint64_t)(shared->tid)<<32 | shared->beg;
-      if (min_val == uint64_t(-1) ||
-          cur_pos > min_val) {
-        ktp_worker_destory(worker_data, shared->n);
-        return nullptr;
-      }
-
-      shared->tid = min_val>>32;
-      shared->end = std::max(-1, (int32_t)min_val -
-                             shared->conf->max_lreads - 1);
+      return true;
     }
   } while (true);
-  ktp_worker_destory(worker_data, shared->n);
-  return nullptr;
+  return false;
+}
+
+static void call_deep_copy(call_t* dst, call_t* src) {
+  memcpy(dst, src, sizeof(call_t));
+  dst->nqsum = 5;
+  dst->qsum  = (float*) malloc(sizeof(float)*dst->nqsum); // will be expanded later if ncessary
+  dst->nals_map = 5;
+  dst->als_map  = (int*) malloc(sizeof(int)*dst->nals_map);
+  dst->npl_map  = 5*(5+1)/2;     // will be expanded later if necessary
+  dst->pl_map   = (int*) malloc(sizeof(int)*dst->npl_map);
+  dst->gts  = (int32_t*) calloc(bcf_hdr_nsamples(src->hdr)*2,sizeof(int32_t));   // assuming at most diploid everywhere
+}
+
+static bool mcall_process(call_t* call, bcf1_t* bcf_rec) {
+  bcf_unpack(bcf_rec, BCF_UN_STR);
+
+  // Which allele is symbolic? All SNPs should have it, but not indels
+  call->unseen = 0;
+  for (int i=1; i<bcf_rec->n_allele; i++)
+  {
+    if ( bcf_rec->d.allele[i][0]=='X' ) { call->unseen = i; break; }  // old X
+    if ( bcf_rec->d.allele[i][0]=='<' )
+    {
+      if ( bcf_rec->d.allele[i][1]=='X' && bcf_rec->d.allele[i][2]=='>' ) { call->unseen = i; break; } // old <X>
+      if ( bcf_rec->d.allele[i][1]=='*' && bcf_rec->d.allele[i][2]=='>' ) { call->unseen = i; break; } // new <*>
+    }
+  }
+  int is_ref = (bcf_rec->n_allele==1 || (bcf_rec->n_allele==2 && call->unseen>0)) ? 1 : 0;
+
+  if ( is_ref && call->flag&CALL_VARONLY )
+    return false;
+
+  bcf_unpack(bcf_rec, BCF_UN_ALL);
+
+  // Calling modes which output VCFs
+  int ret;
+  ret = mcall(call, bcf_rec);
+  if ( ret==-1 ) error("Something is wrong\n");
+  if ( (call->flag & CALL_VARONLY) && ret==0) return false;     // not a variant
+  if (!bcf_rec) return false;
+  return true;
 }
 
 /**
@@ -693,6 +746,8 @@ static void worker(ktp_aux_t* shared,
   bcf_callaux_t *bca = NULL;
   bcf_callret1_t *bcr = NULL;
   bcf_call_t bc;
+  call_t call;
+  call_deep_copy(&call, &shared->call);
 
   int tid = worker_data->tid;
   int beg = worker_data->beg;
@@ -761,6 +816,7 @@ static void worker(ktp_aux_t* shared,
   // if the iter cover any reads
   bool cover = false;
 
+  bcf1_t *bcf_rec = bcf_init1();
   // begin pileup
   while ( (*ret=bam_mplp_auto(iter, &tid, &pos, n_plp, plp)) > 0) {
     if (pos < beg || pos > end) continue; // out of the region requested
@@ -778,11 +834,14 @@ static void worker(ktp_aux_t* shared,
       bcf_call_glfgen(gplp.n_plp[i], gplp.plp[i], ref16, bca, bcr + i);
     bc.tid = tid; bc.pos = pos;
     bcf_call_combine(gplp.n, bcr, bca, ref16, &bc);
-    bcf1_t *bcf_rec = bcf_init1();
+    bcf_clear1(bcf_rec);
     bcf_call2bcf(&bc, bcf_rec, bcr, conf->fmt_flag, 0, 0);
 
     //bcf_write1(bcf_fp, bcf_hdr, bcf_rec);
-    worker_data->vcf_records.push_back(bcf_rec);
+    if (mcall_process(&call, bcf_rec)) {
+      shared->writer->Add(std::unique_ptr<ncic::easehts::VariantContext>(
+              new ncic::easehts::VariantContext(bcf_rec)));
+    }
     // call indels; todo: subsampling with total_depth>max_indel_depth instead of ignoring?
     if (!(conf->flag&MPLP_NO_INDEL) && total_depth < max_indel_depth && bcf_call_gap_prep(gplp.n, gplp.n_plp, gplp.plp, pos, bca, ref, rghash) >= 0)
     {
@@ -790,10 +849,13 @@ static void worker(ktp_aux_t* shared,
       for (i = 0; i < gplp.n; ++i)
         bcf_call_glfgen(gplp.n_plp[i], gplp.plp[i], -1, bca, bcr + i);
       if (bcf_call_combine(gplp.n, bcr, bca, -1, &bc) >= 0) {
-        bcf1_t *bcf_rec = bcf_init1();
+        bcf_clear1(bcf_rec);
         bcf_call2bcf(&bc, bcf_rec, bcr, conf->fmt_flag, bca, ref);
         //bcf_write1(bcf_fp, bcf_hdr, bcf_rec);
-        worker_data->vcf_records.push_back(bcf_rec);
+        if (mcall_process(&call, bcf_rec)) {
+          shared->writer->Add(std::unique_ptr<ncic::easehts::VariantContext>(
+                  new ncic::easehts::VariantContext(bcf_rec)));
+        }
       }
     }
   }
@@ -815,90 +877,100 @@ static void worker(ktp_aux_t* shared,
   free(bc.ADF);
   free(bc.fmt_arr);
   free(bcr);
+  bcf_destroy1(bcf_rec);
 
   bam_mplp_destroy(iter);
 
   free(plp); free(n_plp);
+  mcall_destroy(&call);
+  fprintf(stderr, "Process done %s:%d-%d\n",
+          shared->h->target_name[((ktp_worker_t*)worker_data)->tid],
+          ((ktp_worker_t*)worker_data)->beg,
+          ((ktp_worker_t*)worker_data)->end);
 }
 
-static void *mem_process(ktp_aux_t* shared, ktp_workers_t* workers_data) {
+static void mem_process(ktp_aux_t* shared) {
+  std::mutex mtx;
   std::vector<std::thread> threads;
-  for (int i = 0; i < workers_data->worker_data_vec.size(); i++) {
-    int ret;
-    threads.emplace_back(worker, shared,
-                         workers_data->worker_data_vec[i], &ret);
-  }
+  for (int i = 0; i < shared->conf->nthreads; i++) {
+    threads.emplace_back([&shared, &mtx]() {
+      ktp_worker_t* worker_data = new ktp_worker_t;
+      worker_data->aux = shared;
+      worker_data->record_buf_vec = new mplp_record_t*[shared->n];
+      hts_idx_t* idxs[shared->n];
+      for (int i = 0; i < shared->n; i++) {
+        worker_data->record_buf_vec[i] = new mplp_record_t;
+        mplp_record_t* record_buf = worker_data->record_buf_vec[i];
 
-  for (int i = 0; i < workers_data->worker_data_vec.size(); i++) {
-    threads[i].join();
-  }
-  return workers_data;
-}
-
-
-
-static void* process(void* shared, int step, void* _workers_data) {
-  ktp_aux_t *aux = (ktp_aux_t*)shared;
-  ktp_workers_t *workers_data = (ktp_workers_t*)_workers_data;
-  if (step == 0) {
-    // prepared data for the threads
-    ktp_workers_t *workers_data = new ktp_workers_t;
-
-    for (int thread_idx = 0; thread_idx < aux->conf->nthreads;
-         thread_idx++) {
-      void* worker_data = read_records(aux);
-      if (worker_data == nullptr) {
-        // Means that reach the end
-        break;
-      } else {
-        fprintf(stderr, "Load %s:%d-%d\n",
-                aux->h->target_name[((ktp_worker_t*)worker_data)->tid],
-                ((ktp_worker_t*)worker_data)->beg,
-                ((ktp_worker_t*)worker_data)->end);
-        workers_data->worker_data_vec.push_back((ktp_worker_t*)worker_data);
-      }
-    }
-    if (workers_data->worker_data_vec.empty()) {
-      delete workers_data;
-      return nullptr;
-    }
-    return workers_data;
-  } else if (step == 1) {
-    mem_process(aux, workers_data);
-    return workers_data;
-  } else {
-    for (const auto& worker_data : workers_data->worker_data_vec) {
-      fprintf(stderr, "Write %s:%d-%d\n",
-              aux->h->target_name[((ktp_worker_t*)worker_data)->tid],
-              ((ktp_worker_t*)worker_data)->beg,
-              ((ktp_worker_t*)worker_data)->end);
-      // Write the vcf record to the output
-      for (auto record : worker_data->vcf_records) {
-        bcf_write1(aux->bcf_fp, aux->bcf_hdr, record);
-        bcf_destroy1(record);
+        record_buf->b = bam_init1();
+        record_buf->b_set = false;
+        record_buf->fp = sam_open_format(shared->fn[i], "rb", &shared->conf->ga.in);
+        if ( !record_buf->fp )
+        {
+          fprintf(stderr, "[%s] failed to open %s: %s\n", __func__, shared->fn[i], strerror(errno));
+          exit(EXIT_FAILURE);
+        }
+        if (hts_set_opt(record_buf->fp, CRAM_OPT_DECODE_MD, 0)) {
+          fprintf(stderr, "Failed to set CRAM_OPT_DECODE_MD value\n");
+          exit(EXIT_FAILURE);
+        }
+        if (shared->conf->fai_fname && hts_set_fai_filename(record_buf->fp, shared->conf->fai_fname) != 0) {
+          fprintf(stderr, "[%s] failed to process %s: %s\n",
+                  __func__, shared->conf->fai_fname, strerror(errno));
+          exit(EXIT_FAILURE);
+        }
+        hts_idx_t *idx = sam_index_load(record_buf->fp, shared->fn[i]);
+        if (idx == NULL) {
+          fprintf(stderr, "[%s] fail to load index for %s\n", __func__, shared->fn[i]);
+          exit(EXIT_FAILURE);
+        }
+        record_buf->idx = idx;
       }
 
-      // remove the pos in the buffer_list which before end
-      for (int i = 0; i < aux->n; i++) {
-        std::list<bam1_t*>& item = aux->buffer_list[i];
-        while (!item.empty() &&
-               (item.front()->core.pos <
-                worker_data->end - aux->conf->max_lreads)) {
-          bam_destroy1(item.front());
-          item.pop_front();
+      while (true) {
+        if (read_records(shared, worker_data, mtx)) {
+          int ret;
+          worker(shared, worker_data, &ret);
+        } else {
+          break;
         }
       }
-      // free reference
-      for (int i = 0; i < worker_data->tid; i++) {
-        ref_destory(aux->conf->ref.refs[i]);
-      }
 
-      ktp_worker_destory(worker_data, aux->n);
-
-    }
-    delete workers_data;
-    return nullptr;
+      ktp_worker_destory(worker_data, shared->n);
+    });
   }
+
+  for (int i = 0; i < shared->conf->nthreads; i++) {
+    threads[i].join();
+  }
+}
+
+static void init_aux_call(ktp_aux_t* aux) {
+  memset(&aux->call, 0, sizeof(call_t));
+  aux->call.prior_type = -1;
+  aux->call.indel_frac = -1;
+  aux->call.theta      = 1.1e-3;
+  aux->call.pref       = 0.5;
+  aux->call.min_perm_p = 0.01;
+  aux->call.min_lrt    = 1;
+  aux->call.trio_Pm_SNPs = 1 - 1e-8;
+  aux->call.trio_Pm_ins  = aux->call.trio_Pm_del  = 1 - 1e-9;
+  // the current used call flag is vm
+  aux->call.flag |= CALL_VARONLY;
+  aux->call.hdr = aux->bcf_hdr;
+  ploidy_t *ploidy = ploidy_init_string("* * * 0 0\n* * * 1 1\n* * * 2 2\n",2);
+  int nsex = ploidy_nsex(ploidy);
+  ploidy_destroy(ploidy);
+  int nsamples = bcf_hdr_nsamples(aux->call.hdr);
+  aux->call.ploidy = (uint8_t*)malloc(nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    aux->call.ploidy[i] = 2;
+  }
+
+  mcall_init(&aux->call);
+
+  bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "QS");
+  bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "I16");
 }
 
 /*
@@ -935,15 +1007,12 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
     mode = (conf->flag&MPLP_NO_COMP)? "wu" : "wz";   // uncompressed VCF or compressed VCF
   else
     mode = (conf->flag&MPLP_NO_COMP)? "wub" : "wb";  // uncompressed BCF or compressed BCF
+  ncic::easehts::VCFWriter writer(conf->output_fname?
+                                      conf->output_fname : "-",
+                                      mode);
 
-  htsFile* bcf_fp = bcf_open(conf->output_fname? conf->output_fname : "-", mode);
-  if (bcf_fp == NULL) {
-    fprintf(stderr, "[%s] failed to write to %s: %s\n", __func__,
-            conf->output_fname? conf->output_fname : "standard output", strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  bcf_hdr_t* bcf_hdr = bcf_hdr_init("w");
-  write_header(conf, n, fn, bcf_hdr, bcf_fp, sm, rghash, h, data);
+  bcf_hdr_t* bcf_hdr = writer.GetHeader()->GetRawHeader();
+  write_header(conf, n, fn, bcf_hdr, sm, rghash, h, data);
   mplp_ref_init(&conf->ref, h->n_targets);
 
   ktp_aux_t aux;
@@ -953,25 +1022,18 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
   aux.n = n;
   aux.fn = fn;
   aux.bcf_hdr = bcf_hdr;
-  aux.bcf_fp = bcf_fp;
   aux.sm = sm;
   aux.rghash = rghash;
   aux.tid = -1;
   aux.beg = 0;
   aux.end = -1;
-  aux.buffer_list.resize(n);
+  aux.writer = &writer;
+  // here will change the header
+  init_aux_call(&aux);
+  writer.WriteHeader();
 
-  kt_pipeline(2, process, &aux, 3);
-  // remove the pos in the buffer_list which before end
-  for (int i = 0; i < aux.n; i++) {
-    std::list<bam1_t*>& buffer_list = aux.buffer_list[i];
-    for (auto& item : buffer_list) {
-      free(item);
-    }
-    buffer_list.clear();
-  }
+  mem_process(&aux);
 
-  hts_close(bcf_fp);
   bam_smpl_destroy(sm);
   bcf_call_del_rghash(rghash);
   mplp_ref_destory(&conf->ref, h->n_targets);
@@ -980,16 +1042,10 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
     sam_close(data[i]->fp);
     free(data[i]);
   }
-  bcf_hdr_destroy(bcf_hdr);
-
-  // free the buffer_list
-  for (int i = 0; i < n; ++i) {
-    for (auto item : aux.buffer_list[i]) {
-      free(item);
-    }
-  }
   free(data);
 
+  mcall_destroy(&aux.call);
+  free(aux.call.ploidy);
   return 0;
 }
 

@@ -1,4 +1,4 @@
-/*  bam_plcmd.c -- mpileup subcommand.
+/*  mpileup_bcftools.cpp -- combine mpileup and bcftools mcall commands.
 
     Copyright (C) 2008-2015 Genome Research Ltd.
     Portions copyright (C) 2009-2012 Broad Institute.
@@ -44,6 +44,8 @@ DEALINGS IN THE SOFTWARE.  */
 #include "sam_utils.h"
 #include "sam_opts.h"
 #include "kthread.h"
+#include "call.h"
+#include "ploidy.h"
 
 #include <easehts/utils.h>
 #include <vector>
@@ -178,6 +180,7 @@ typedef struct {
     faidx_t *fai;
     mplp_ref_t ref;
     pthread_mutex_t mutex;
+
 } mplp_conf_t;
 
 typedef struct {
@@ -205,6 +208,8 @@ typedef struct {
   int tid;
   int beg;
   int end;
+
+  call_t call;
 
   // store the traverse record
   std::vector<std::list<bam1_t*>> buffer_list;
@@ -264,7 +269,6 @@ static int mplp_get_ref(ktp_aux_t *shared, int tid,  char **ref, int *ref_len) {
       pthread_mutex_unlock(&shared->conf->mutex);
       return 1;
     }
-
     r->ref_id = tid;
     r->ref = faidx_fetch_seq(shared->conf->fai,
                              shared->h->target_name[r->ref_id],
@@ -534,8 +538,8 @@ static void write_header(mplp_conf_t*& conf, int n, char **fn,
     for (int i=0; i<sm->n; i++)
       bcf_hdr_add_sample(bcf_hdr, sm->smpl[i]);
     bcf_hdr_add_sample(bcf_hdr, NULL);
-    bcf_hdr_write(bcf_fp, bcf_hdr);
     // End of BCF header creation
+    if ( bcf_hdr->dirty ) bcf_hdr_sync(bcf_hdr);
 
   }
   else {
@@ -659,6 +663,47 @@ static void* read_records(ktp_aux_t* shared) {
   return nullptr;
 }
 
+static void call_deep_copy(call_t* dst, call_t* src) {
+  memcpy(dst, src, sizeof(call_t));
+  dst->nqsum = 5;
+  dst->qsum  = (float*) malloc(sizeof(float)*dst->nqsum); // will be expanded later if ncessary
+  dst->nals_map = 5;
+  dst->als_map  = (int*) malloc(sizeof(int)*dst->nals_map);
+  dst->npl_map  = 5*(5+1)/2;     // will be expanded later if necessary
+  dst->pl_map   = (int*) malloc(sizeof(int)*dst->npl_map);
+  dst->gts  = (int32_t*) calloc(bcf_hdr_nsamples(src->hdr)*2,sizeof(int32_t));   // assuming at most diploid everywhere
+}
+
+static bool mcall_process(call_t* call, bcf1_t* bcf_rec) {
+  bcf_unpack(bcf_rec, BCF_UN_STR);
+
+  // Which allele is symbolic? All SNPs should have it, but not indels
+  call->unseen = 0;
+  for (int i=1; i<bcf_rec->n_allele; i++)
+  {
+    if ( bcf_rec->d.allele[i][0]=='X' ) { call->unseen = i; break; }  // old X
+    if ( bcf_rec->d.allele[i][0]=='<' )
+    {
+      if ( bcf_rec->d.allele[i][1]=='X' && bcf_rec->d.allele[i][2]=='>' ) { call->unseen = i; break; } // old <X>
+      if ( bcf_rec->d.allele[i][1]=='*' && bcf_rec->d.allele[i][2]=='>' ) { call->unseen = i; break; } // new <*>
+    }
+  }
+  int is_ref = (bcf_rec->n_allele==1 || (bcf_rec->n_allele==2 && call->unseen>0)) ? 1 : 0;
+
+  if ( is_ref && call->flag&CALL_VARONLY )
+    return false;
+
+  bcf_unpack(bcf_rec, BCF_UN_ALL);
+
+  // Calling modes which output VCFs
+  int ret;
+  ret = mcall(call, bcf_rec);
+  if ( ret==-1 ) error("Something is wrong\n");
+  if ( (call->flag & CALL_VARONLY) && ret==0) return false;     // not a variant
+  if (!bcf_rec) return false;
+  return true;
+}
+
 /**
  * The core process function, process a region
  *
@@ -693,6 +738,8 @@ static void worker(ktp_aux_t* shared,
   bcf_callaux_t *bca = NULL;
   bcf_callret1_t *bcr = NULL;
   bcf_call_t bc;
+  call_t call;
+  call_deep_copy(&call, &shared->call);
 
   int tid = worker_data->tid;
   int beg = worker_data->beg;
@@ -782,7 +829,9 @@ static void worker(ktp_aux_t* shared,
     bcf_call2bcf(&bc, bcf_rec, bcr, conf->fmt_flag, 0, 0);
 
     //bcf_write1(bcf_fp, bcf_hdr, bcf_rec);
-    worker_data->vcf_records.push_back(bcf_rec);
+    if (mcall_process(&call, bcf_rec)) {
+      worker_data->vcf_records.push_back(bcf_rec);
+    }
     // call indels; todo: subsampling with total_depth>max_indel_depth instead of ignoring?
     if (!(conf->flag&MPLP_NO_INDEL) && total_depth < max_indel_depth && bcf_call_gap_prep(gplp.n, gplp.n_plp, gplp.plp, pos, bca, ref, rghash) >= 0)
     {
@@ -793,7 +842,9 @@ static void worker(ktp_aux_t* shared,
         bcf1_t *bcf_rec = bcf_init1();
         bcf_call2bcf(&bc, bcf_rec, bcr, conf->fmt_flag, bca, ref);
         //bcf_write1(bcf_fp, bcf_hdr, bcf_rec);
-        worker_data->vcf_records.push_back(bcf_rec);
+        if (mcall_process(&call, bcf_rec)) {
+          worker_data->vcf_records.push_back(bcf_rec);
+        }
       }
     }
   }
@@ -819,6 +870,11 @@ static void worker(ktp_aux_t* shared,
   bam_mplp_destroy(iter);
 
   free(plp); free(n_plp);
+  mcall_destroy(&call);
+  fprintf(stderr, "Process done %s:%d-%d\n",
+          shared->h->target_name[((ktp_worker_t*)worker_data)->tid],
+          ((ktp_worker_t*)worker_data)->beg,
+          ((ktp_worker_t*)worker_data)->end);
 }
 
 static void *mem_process(ktp_aux_t* shared, ktp_workers_t* workers_data) {
@@ -856,6 +912,10 @@ static void* process(void* shared, int step, void* _workers_data) {
                 ((ktp_worker_t*)worker_data)->beg,
                 ((ktp_worker_t*)worker_data)->end);
         workers_data->worker_data_vec.push_back((ktp_worker_t*)worker_data);
+        fprintf(stderr, "Load done %s:%d-%d\n",
+                aux->h->target_name[((ktp_worker_t*)worker_data)->tid],
+                ((ktp_worker_t*)worker_data)->beg,
+                ((ktp_worker_t*)worker_data)->end);
       }
     }
     if (workers_data->worker_data_vec.empty()) {
@@ -888,17 +948,50 @@ static void* process(void* shared, int step, void* _workers_data) {
           item.pop_front();
         }
       }
+
       // free reference
       for (int i = 0; i < worker_data->tid; i++) {
         ref_destory(aux->conf->ref.refs[i]);
       }
 
+      fprintf(stderr, "Write done %s:%d-%d\n",
+              aux->h->target_name[((ktp_worker_t*)worker_data)->tid],
+              ((ktp_worker_t*)worker_data)->beg,
+              ((ktp_worker_t*)worker_data)->end);
       ktp_worker_destory(worker_data, aux->n);
 
     }
     delete workers_data;
     return nullptr;
   }
+}
+
+static void init_aux_call(ktp_aux_t* aux) {
+  memset(&aux->call, 0, sizeof(call_t));
+  aux->call.prior_type = -1;
+  aux->call.indel_frac = -1;
+  aux->call.theta      = 1.1e-3;
+  aux->call.pref       = 0.5;
+  aux->call.min_perm_p = 0.01;
+  aux->call.min_lrt    = 1;
+  aux->call.trio_Pm_SNPs = 1 - 1e-8;
+  aux->call.trio_Pm_ins  = aux->call.trio_Pm_del  = 1 - 1e-9;
+  // the current used call flag is vm
+  aux->call.flag |= CALL_VARONLY;
+  aux->call.hdr = aux->bcf_hdr;
+  ploidy_t *ploidy = ploidy_init_string("* * * 0 0\n* * * 1 1\n* * * 2 2\n",2);
+  int nsex = ploidy_nsex(ploidy);
+  ploidy_destroy(ploidy);
+  int nsamples = bcf_hdr_nsamples(aux->call.hdr);
+  aux->call.ploidy = (uint8_t*)malloc(nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    aux->call.ploidy[i] = 2;
+  }
+
+  mcall_init(&aux->call);
+
+  bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "QS");
+  bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "I16");
 }
 
 /*
@@ -960,6 +1053,9 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
   aux.beg = 0;
   aux.end = -1;
   aux.buffer_list.resize(n);
+  // here will change the header
+  init_aux_call(&aux);
+  bcf_hdr_write(bcf_fp, bcf_hdr);
 
   kt_pipeline(2, process, &aux, 3);
   // remove the pos in the buffer_list which before end
@@ -981,6 +1077,8 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
     free(data[i]);
   }
   bcf_hdr_destroy(bcf_hdr);
+  free(aux.call.ploidy);
+  mcall_destroy(&aux.call);
 
   // free the buffer_list
   for (int i = 0; i < n; ++i) {

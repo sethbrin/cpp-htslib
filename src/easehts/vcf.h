@@ -530,6 +530,10 @@ class VCFWriter : public VariantContextWriter {
     ERROR_COND(ret < 0, "Failed to write record");
   }
 
+  void Add(std::unique_ptr<VariantContext>&& vc) {
+    Add(vc);
+  }
+
  private:
   std::mutex mtx_;
 };
