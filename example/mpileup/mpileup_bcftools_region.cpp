@@ -383,7 +383,13 @@ static void group_smpl(mplp_pileup_t *m, bam_sample_t *sm, kstring_t *buf,
             int id = -1;
             q = ignore_rg? NULL : bam_aux_get(p->b, "RG");
             if (q) id = bam_smpl_rg2smid(sm, fn[i], (char*)q+1, buf);
-            if (id < 0) id = bam_smpl_rg2smid(sm, fn[i], 0, buf);
+            if (id < 0) {
+              if (n == 1) {
+                id = 0;
+              } else {
+                id = bam_smpl_rg2smid(sm, fn[i], 0, buf);
+              }
+            }
             if (id < 0 || id >= m->n) {
                 assert(q); // otherwise a bug
                 fprintf(stderr, "[%s] Read group %s used in file %s but absent from the header or an alignment missing read group.\n", __func__, (char*)q+1, fn[i]);
@@ -734,9 +740,15 @@ static void worker(ktp_aux_t* shared,
   int n = shared->n;
   char** fn = shared->fn;
   bcf_hdr_t* bcf_hdr = shared->bcf_hdr;
-  bam_sample_t* sm = shared->sm;
+  bam_sample_t* sm = bam_smpl_init();
   void* rghash = shared->rghash;
   bam_hdr_t* h = shared->h;
+
+  // init sm
+  for (int i = 0; i < n; ++i) {
+    bam_smpl_add(sm, fn[i],
+                 (shared->conf->flag&MPLP_IGNORE_RG)? 0 : h->text);
+  }
 
   bam_mplp_t iter;
   const bam_pileup1_t **plp;
@@ -864,6 +876,7 @@ static void worker(ktp_aux_t* shared,
   if (!cover) {
     *ret = 1;
   }
+  bam_smpl_destroy(sm);
 
   for (i = 0; i < gplp.n; ++i) free(gplp.plp[i]);
   free(gplp.plp); free(gplp.n_plp); free(gplp.m_plp);
