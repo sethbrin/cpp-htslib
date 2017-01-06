@@ -902,6 +902,7 @@ static void mem_process(ktp_aux_t* shared) {
         worker_data->record_buf_vec[i] = new mplp_record_t;
         mplp_record_t* record_buf = worker_data->record_buf_vec[i];
 
+        record_buf->iter = nullptr;
         record_buf->b = bam_init1();
         record_buf->b_set = false;
         record_buf->fp = sam_open_format(shared->fn[i], "rb", &shared->conf->ga.in);
