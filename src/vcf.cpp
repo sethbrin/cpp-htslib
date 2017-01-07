@@ -46,11 +46,13 @@ bool VCFIndexReader::HasNext() {
     if ((vcf_parse(&str, header_->GetRawHeader(),
                    record->GetRawRecord())) >= 0) {
       cur_record_ = record;
+      free(str.s);
       return true;
     } else {
       WARN(utils::StringFormatCStr("Bad format vcf line:%s", str.s));
     }
   }
+  free(str.s);
   delete record;
   return false;
 
@@ -77,6 +79,9 @@ void VCFTraverse::SeekFroward(const GenomeLoc& interval) {
       cur_pos_ <= max_pos_) {
     PurgeOutofScopeRecords();
   } else {
+    for (auto item : buffer_list_) {
+      delete item;
+    }
     buffer_list_.clear();
     max_pos_ = -1;
     cur_contig_id_ = interval.GetContigId();
@@ -93,14 +98,20 @@ void VCFTraverse::SeekFroward(const GenomeLoc& interval) {
       reader_->GetHeader().CreateOverEntireContig(cur_contig_id_);
     GenomeLoc that_contig = record->GetLocation();
 
-    if (current_contig.IsPast(that_contig)) continue;
+    if (current_contig.IsPast(that_contig)) {
+      delete record;
+      continue;
+    }
     if (current_contig.IsBefore(that_contig)) {
       cur_record_ = record;
       break;
     }
 
     // we get here if we are on the requested contig
-    if (that_contig.GetStop() < cur_pos_) continue;
+    if (that_contig.GetStop() < cur_pos_) {
+      delete record;
+      continue;
+    }
     if (that_contig.GetStart() > cur_query_end_) {
       cur_record_ = record;
       break;

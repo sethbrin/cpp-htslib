@@ -12,6 +12,7 @@ AbstractFastaSequenceFile::AbstractFastaSequenceFile(std::string file_path) :
   if (!dictionary_name.empty()) {
     samFile* fp = sam_open(dictionary_name.c_str(), "r");
     ref_header_ = SAMSequenceDictionary::ReadHeader(fp);
+    hts_close(fp);
   }
 }
 

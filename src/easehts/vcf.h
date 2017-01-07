@@ -295,7 +295,7 @@ class VCFReader {
     cur_record_ = nullptr;
   }
 
-  ~VCFReader() {
+  virtual ~VCFReader() {
     int ret;
     if ((ret = ::hts_close(fp_))) {
       fprintf(stderr, "hts_close(%s) non zero status %d\n",
@@ -352,7 +352,7 @@ class VCFIndexReader : public VCFReader {
     hts_iter_ = nullptr;
   }
 
-  ~VCFIndexReader() {
+  ~VCFIndexReader() override {
     if (hts_iter_) tbx_itr_destroy(hts_iter_);
     if (tbx_idx_) tbx_destroy(tbx_idx_);
   }
@@ -388,6 +388,7 @@ class VCFTraverse {
       delete *iter;
     }
     buffer_list_.clear();
+    if (cur_record_) delete cur_record_;
   }
 
   VCFReader* GetReader() const {

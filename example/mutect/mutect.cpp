@@ -289,7 +289,10 @@ void Worker::PrepareCondidate(
         up_ref, alt_allele);
 
     if (!force_output &&
-        candidate.tumor_F < mutect_args_.tumor_f_pretest.getValue()) continue;
+        candidate.tumor_F < mutect_args_.tumor_f_pretest.getValue()) {
+      delete pCandidate;
+      continue;
+    }
 
     candidate.initial_tumor_alt_counts =
       tumor_read_pile.quality_sums_.GetCounts(alt_allele);
@@ -309,7 +312,10 @@ void Worker::PrepareCondidate(
     candidate.tumor_deletion_count = tumor_read_pile.deletions_count_;
 
     if (candidate.tumor_lodF_star <
-        mutect_args_.initial_tumor_lod_threshold.getValue()) continue;
+        mutect_args_.initial_tumor_lod_threshold.getValue()) {
+      delete pCandidate;
+      continue;
+    }
 
     // calculate lod of contaminant
     double contaminant_F = std::min(contaminat_alternate_fraction_,
@@ -398,7 +404,10 @@ void Worker::PrepareCondidate(
     t2.InitPileups();
 
     // if there are no reads remaining, abandon this theory
-    if (!force_output && t2.final_pileup_.Size() == 0) continue;
+    if (!force_output && t2.final_pileup_.Size() == 0) {
+      delete pCandidate;
+      continue;
+    }
 
     candidate.initial_tumor_alt_counts = t2.quality_sums_.GetCounts(alt_allele);
     candidate.initial_tumor_ref_counts = t2.quality_sums_.GetCounts(up_ref);
@@ -518,6 +527,7 @@ void Worker::PrepareCondidate(
 
     if (mutect_args_.force_alleles.getValue()) {
       call_stats_generator_.WriteCallStats(candidate);
+      delete pCandidate;
     } else {
       message_by_tumor_lod[candidate.initial_tumor_lod] = &candidate;
     }

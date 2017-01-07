@@ -53,6 +53,10 @@ class AbstractSAMBAMReader : public NonCopyable {
     return *this;
   }
 
+  virtual ~AbstractSAMBAMReader() {
+    if (fp_) hts_close(fp_);
+  }
+
   virtual bool HasNext(SAMBAMRecord* record) = 0;
 
   // load the bam data to record
@@ -165,6 +169,10 @@ class BAMIndexReader : public AbstractSAMBAMReader {
     rhs.hts_iter_ = nullptr;
   }
 
+  ~BAMIndexReader() override {
+    if (hts_iter_) hts_itr_destroy(hts_iter_);
+  }
+
   bool HasNext(SAMBAMRecord* record) override;
   bool HasNext(bam1_t* record) override;
 
@@ -203,6 +211,13 @@ class BAMIndexBatchReader : public AbstractSAMBAMReader {
       AbstractSAMBAMReader(std::move(rhs)),
       hts_iters_(std::move(rhs.hts_iters_)),
       index_(std::move(rhs.index_)) {
+  }
+
+  ~BAMIndexBatchReader() override {
+    while (!hts_iters_.empty()) {
+      hts_itr_destroy(hts_iters_.front());
+      hts_iters_.pop();
+    }
   }
 
   bool HasNext(SAMBAMRecord* record) override;
