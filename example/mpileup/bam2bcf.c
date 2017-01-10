@@ -42,6 +42,45 @@ extern  void ks_introsort_uint32_t(size_t n, uint32_t a[]);
 
 #define CAP_DIST 25
 
+//static errmod_t* errmod_dup(errmod_t* src) {
+//  errmod_t* em = (errmod_t*)calloc(1, sizeof(errmod_t));
+//  em->depcorr = src->depcorr;
+//  em->fk = (double*)calloc(256, sizeof(double));
+//  memcpy(em->fk, src->fk, 256 * sizeof(double));
+//
+//  em->beta = (double*)calloc(256 * 256 * 64, sizeof(double));
+//  memcpy(em->beta, src->beta, 256 * 256 * 64 * sizeof(double));
+//
+//  em->lhet = (double*)calloc(256 * 256, sizeof(double));
+//  memcpy(em->lhet, src->lhet, 256i * 256 * sizeof(double));
+//  return em;
+//}
+
+bcf_callaux_t *bcf_call_init2(double theta, int min_baseQ, errmod_t* em)
+{
+    bcf_callaux_t *bca;
+    if (theta <= 0.) theta = CALL_DEFTHETA;
+    bca = calloc(1, sizeof(bcf_callaux_t));
+    bca->capQ = 60;
+    bca->openQ = 40; bca->extQ = 20; bca->tandemQ = 100;
+    bca->min_baseQ = min_baseQ;
+    bca->e = em;
+    bca->min_frac = 0.002;
+    bca->min_support = 1;
+    bca->per_sample_flt = 0;
+    bca->npos = 100;
+    bca->ref_pos = malloc(bca->npos*sizeof(int));
+    bca->alt_pos = malloc(bca->npos*sizeof(int));
+    bca->nqual = 60;
+    bca->ref_mq  = malloc(bca->nqual*sizeof(int));
+    bca->alt_mq  = malloc(bca->nqual*sizeof(int));
+    bca->ref_bq  = malloc(bca->nqual*sizeof(int));
+    bca->alt_bq  = malloc(bca->nqual*sizeof(int));
+    bca->fwd_mqs = malloc(bca->nqual*sizeof(int));
+    bca->rev_mqs = malloc(bca->nqual*sizeof(int));
+    return bca;
+}
+
 bcf_callaux_t *bcf_call_init(double theta, int min_baseQ)
 {
     bcf_callaux_t *bca;
@@ -65,6 +104,16 @@ bcf_callaux_t *bcf_call_init(double theta, int min_baseQ)
     bca->fwd_mqs = malloc(bca->nqual*sizeof(int));
     bca->rev_mqs = malloc(bca->nqual*sizeof(int));
     return bca;
+}
+
+void bcf_call_destroy2(bcf_callaux_t *bca)
+{
+    if (bca == 0) return;
+    if (bca->npos) { free(bca->ref_pos); free(bca->alt_pos); bca->npos = 0; }
+    free(bca->ref_mq); free(bca->alt_mq); free(bca->ref_bq); free(bca->alt_bq);
+    free(bca->fwd_mqs); free(bca->rev_mqs);
+    bca->nqual = 0;
+    free(bca->bases); free(bca->inscns); free(bca);
 }
 
 void bcf_call_destroy(bcf_callaux_t *bca)

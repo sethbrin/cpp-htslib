@@ -383,6 +383,7 @@ static void group_smpl(mplp_pileup_t *m, bam_sample_t *sm, kstring_t *buf,
             int id = -1;
             q = ignore_rg? NULL : bam_aux_get(p->b, "RG");
             if (q) id = bam_smpl_rg2smid(sm, fn[i], (char*)q+1, buf);
+            //if (id < 0) id = bam_smpl_rg2smid(sm, fn[i], 0, buf);
             if (id < 0) {
               if (n == 1) {
                 id = 0;
@@ -730,6 +731,7 @@ static bool mcall_process(call_t* call, bcf1_t* bcf_rec) {
  */
 static void worker(ktp_aux_t* shared,
                    ktp_worker_t* worker_data,
+                   errmod_t* em,
                    int* ret) {
 
   fprintf(stderr, "Process %s:%d-%d\n",
@@ -740,15 +742,16 @@ static void worker(ktp_aux_t* shared,
   int n = shared->n;
   char** fn = shared->fn;
   bcf_hdr_t* bcf_hdr = shared->bcf_hdr;
-  bam_sample_t* sm = bam_smpl_init();
+  //bam_sample_t* sm = bam_smpl_init();
+  bam_sample_t* sm = shared->sm;
   void* rghash = shared->rghash;
   bam_hdr_t* h = shared->h;
 
   // init sm
-  for (int i = 0; i < n; ++i) {
-    bam_smpl_add(sm, fn[i],
-                 (shared->conf->flag&MPLP_IGNORE_RG)? 0 : h->text);
-  }
+  //for (int i = 0; i < n; ++i) {
+  //  bam_smpl_add(sm, fn[i],
+  //               (shared->conf->flag&MPLP_IGNORE_RG)? 0 : h->text);
+  //}
 
   bam_mplp_t iter;
   const bam_pileup1_t **plp;
@@ -775,7 +778,8 @@ static void worker(ktp_aux_t* shared,
   n_plp = (int*)calloc(n, sizeof(int));
 
   // Initialise the calling algorithm
-  bca = bcf_call_init(-1., conf->min_baseQ);
+  bca = bcf_call_init2(-1., conf->min_baseQ, em);
+  //bca = bcf_call_init(-1., conf->min_baseQ);
   bcr = (bcf_callret1_t*)calloc(sm->n, sizeof(bcf_callret1_t));
   bca->rghash = rghash;
   bca->openQ = conf->openQ, bca->extQ = conf->extQ, bca->tandemQ = conf->tandemQ;
@@ -876,14 +880,14 @@ static void worker(ktp_aux_t* shared,
   if (!cover) {
     *ret = 1;
   }
-  bam_smpl_destroy(sm);
+  //bam_smpl_destroy(sm);
 
   for (i = 0; i < gplp.n; ++i) free(gplp.plp[i]);
   free(gplp.plp); free(gplp.n_plp); free(gplp.m_plp);
   free(buf.s);
   // clean up
   free(bc.tmp.s);
-  bcf_call_destroy(bca);
+  bcf_call_destroy2(bca);
   free(bc.PL);
   free(bc.DP4);
   free(bc.ADR);
@@ -905,8 +909,10 @@ static void worker(ktp_aux_t* shared,
 static void mem_process(ktp_aux_t* shared) {
   std::mutex mtx;
   std::vector<std::thread> threads;
+  // 0.83 == CALL_DEFTHETA
+  errmod_t* em = errmod_init(1.0 - 0.83);
   for (int i = 0; i < shared->conf->nthreads; i++) {
-    threads.emplace_back([&shared, &mtx]() {
+    threads.emplace_back([&shared, &mtx, em]() {
       ktp_worker_t* worker_data = new ktp_worker_t;
       worker_data->aux = shared;
       worker_data->record_buf_vec = new mplp_record_t*[shared->n];
@@ -944,7 +950,7 @@ static void mem_process(ktp_aux_t* shared) {
       while (true) {
         if (read_records(shared, worker_data, mtx)) {
           int ret;
-          worker(shared, worker_data, &ret);
+          worker(shared, worker_data, em, &ret);
         } else {
           break;
         }
@@ -957,6 +963,7 @@ static void mem_process(ktp_aux_t* shared) {
   for (int i = 0; i < shared->conf->nthreads; i++) {
     threads[i].join();
   }
+  errmod_destroy(em);
 }
 
 static void init_aux_call(ktp_aux_t* aux) {
@@ -972,9 +979,9 @@ static void init_aux_call(ktp_aux_t* aux) {
   // the current used call flag is vm
   aux->call.flag |= CALL_VARONLY;
   aux->call.hdr = aux->bcf_hdr;
-  ploidy_t *ploidy = ploidy_init_string("* * * 0 0\n* * * 1 1\n* * * 2 2\n",2);
-  int nsex = ploidy_nsex(ploidy);
-  ploidy_destroy(ploidy);
+  //ploidy_t *ploidy = ploidy_init_string("* * * 0 0\n* * * 1 1\n* * * 2 2\n",2);
+  //int nsex = ploidy_nsex(ploidy);
+  //ploidy_destroy(ploidy);
   int nsamples = bcf_hdr_nsamples(aux->call.hdr);
   aux->call.ploidy = (uint8_t*)malloc(nsamples);
   for (int i = 0; i < nsamples; i++) {

@@ -121,9 +121,9 @@ std::vector<GenomeLoc> IntervalUtils::IntervalFileToList(
 
     if (gl_parser.ValidateGenomeLoc(contig, start, stop, true)) {
       // As interval file is 1-based, so we should change to 0-based
-      genome_locs.push_back(GenomeLoc(contig, gl_parser.GetContigId(contig),
+      genome_locs.emplace_back(contig, gl_parser.GetContigId(contig),
                                start-1-interval_padding,
-                               stop-1+interval_padding));
+                               stop-1+interval_padding);
     } else {
       _parse_warn(true, "Ignore invalid genome loc");
     }

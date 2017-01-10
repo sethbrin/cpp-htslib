@@ -123,7 +123,9 @@ extern "C" {
 #endif
 
     bcf_callaux_t *bcf_call_init(double theta, int min_baseQ);
+    bcf_callaux_t *bcf_call_init2(double theta, int min_baseQ, errmod_t* em);
     void bcf_call_destroy(bcf_callaux_t *bca);
+    void bcf_call_destroy2(bcf_callaux_t *bca);
     int bcf_call_glfgen(int _n, const bam_pileup1_t *pl, int ref_base, bcf_callaux_t *bca, bcf_callret1_t *r);
     int bcf_call_combine(int n, const bcf_callret1_t *calls, bcf_callaux_t *bca, int ref_base /*4-bit*/, bcf_call_t *call);
     int bcf_call2bcf(bcf_call_t *bc, bcf1_t *b, bcf_callret1_t *bcr, int fmt_flag,
