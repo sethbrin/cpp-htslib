@@ -54,7 +54,6 @@ DEALINGS IN THE SOFTWARE.  */
 #include <mutex>
 #include <list>
 
-
 static inline int printw(int c, FILE *fp)
 {
     char buf[16];
@@ -205,6 +204,7 @@ typedef struct {
   bcf_hdr_t* bcf_hdr;
   bam_sample_t* sm;
   void* rghash;
+  int tid_idx;
   int tid;
   int beg;
   int end;
@@ -234,6 +234,9 @@ typedef struct {
   mplp_record_t** record_buf_vec;
 
   ktp_aux_t* aux;
+#ifdef MPILEUP_STATS
+  int total_reads;
+#endif
 } ktp_worker_t;
 
 typedef struct {
@@ -322,6 +325,9 @@ static int mplp_func(void *data, bam1_t *b)
       ret = sam_itr_next(record_buf->fp, record_buf->iter, b);
       if (ret < 0) break;
     }
+#ifdef MPILEUP_STATS
+    worker_data->total_reads ++;
+#endif
     // The 'B' cigar operation is not part of the specification, considering as obsolete.
     //  bam_remove_B(b);
     if (b->core.tid < 0 || (b->core.flag&BAM_FUNMAP)) { // exclude unmapped reads
@@ -560,15 +566,17 @@ static void ktp_worker_destory(ktp_worker_t* worker_data, int n) {
 /**
  * Decide if the current tid has reads
  */
-static bool decide_next_tid(ktp_aux_t* shared, ktp_worker_t* worker_data) {
+static bool decide_next_tid(ktp_aux_t* shared, ktp_worker_t* worker_data,
+                            const std::vector<int>& sorted_tids) {
   int min_val = INT_MAX;
   bam1_t* record = bam_init1();
   bool res = false;
   do {
-    shared->tid ++;
-    if (shared->tid >= shared->h->n_targets) {
+    shared->tid_idx ++;
+    if (shared->tid_idx >= sorted_tids.size()) {
       break;
     }
+    shared->tid = sorted_tids[shared->tid_idx];
     for (int i = 0; i < shared->n; i++) {
       mplp_record_t* record_buf = worker_data->record_buf_vec[i];
       // NOTE the end should +1
@@ -610,6 +618,7 @@ static bool decide_next_tid(ktp_aux_t* shared, ktp_worker_t* worker_data) {
  *
  */
 static bool read_records(ktp_aux_t* shared, ktp_worker_t* worker_data,
+                         const std::vector<int>& sorted_tids,
                          std::mutex& mtx) {
   bam_hdr_t* h = shared->h;
 
@@ -617,7 +626,7 @@ static bool read_records(ktp_aux_t* shared, ktp_worker_t* worker_data,
     int beg, end, tid;
     {
       std::lock_guard<std::mutex> lock(mtx);
-      if (shared->tid >= h->n_targets) {
+      if (shared->tid_idx >= static_cast<int>(sorted_tids.size())) {
         return false;
       }
       beg = shared->end + 1;
@@ -626,7 +635,7 @@ static bool read_records(ktp_aux_t* shared, ktp_worker_t* worker_data,
         do {
           // decide if the current tid has reads
           // add set the beg
-          if (decide_next_tid(shared, worker_data)) {
+          if (decide_next_tid(shared, worker_data, sorted_tids)) {
             beg = shared->beg;
             break;
           } else {
@@ -641,6 +650,9 @@ static bool read_records(ktp_aux_t* shared, ktp_worker_t* worker_data,
       worker_data->beg = beg;
       worker_data->end = end;
       worker_data->tid = tid;
+#ifdef MPILEUP_STATS
+      worker_data->total_reads = 0;
+#endif
     }
 
     bool flag = false;
@@ -733,6 +745,9 @@ static void worker(ktp_aux_t* shared,
                    ktp_worker_t* worker_data,
                    errmod_t* em,
                    int* ret) {
+#ifdef MPILEUP_STATS
+  int region_total_depth = 0;
+#endif
 
   fprintf(stderr, "Process %s:%d-%d\n",
           shared->h->target_name[((ktp_worker_t*)worker_data)->tid],
@@ -836,12 +851,16 @@ static void worker(ktp_aux_t* shared,
   // begin pileup
   while ( (*ret=bam_mplp_auto(iter, &tid, &pos, n_plp, plp)) > 0) {
     if (pos < beg || pos > end) continue; // out of the region requested
+
     cover = true;
     mplp_get_ref(shared, tid, &ref, &ref_len);
     //printf("tid=%d len=%d ref=%p/%s\n", tid, ref_len, ref, ref);
     int total_depth, _ref0, ref16;
     if (conf->bed && tid >= 0 && !bed_overlap(conf->bed, h->target_name[tid], pos, pos+1)) continue;
     for (i = total_depth = 0; i < n; ++i) total_depth += n_plp[i];
+#ifdef MPILEUP_STATS
+    region_total_depth += total_depth;
+#endif
     group_smpl(&gplp, sm, &buf, n, fn, n_plp, plp, conf->flag & MPLP_IGNORE_RG);
     _ref0 = (ref && pos < ref_len)? ref[pos] : 'N';
     ref16 = seq_nt16_table[_ref0];
@@ -900,19 +919,79 @@ static void worker(ktp_aux_t* shared,
 
   free(plp); free(n_plp);
   mcall_destroy(&call);
+#ifdef MPILEUP_STATS
+  fprintf(stderr, "Process done %s:%d-%d\treads:%d\tdepth:%d\n",
+          shared->h->target_name[((ktp_worker_t*)worker_data)->tid],
+          ((ktp_worker_t*)worker_data)->beg,
+          ((ktp_worker_t*)worker_data)->end,
+          ((ktp_worker_t*)worker_data)->total_reads,
+          region_total_depth);
+#else
   fprintf(stderr, "Process done %s:%d-%d\n",
           shared->h->target_name[((ktp_worker_t*)worker_data)->tid],
           ((ktp_worker_t*)worker_data)->beg,
           ((ktp_worker_t*)worker_data)->end);
+#endif
 }
 
+// The num_reads and length of the reference
+typedef struct {
+  uint64_t num_reads;
+  uint32_t length;
+  int tid;
+} reference_depth_t;
+
+/**
+ * Calc the sorted_tids which is sorted by reads of reference / length of
+ * reference
+ * here we just use the fomular to substitute  depth
+ */
+static std::vector<int> sorted_reference_by_depth(const ktp_aux_t* shared) {
+  std::vector<reference_depth_t> sorted_tids;
+  bam_hdr_t* h = shared->h;
+  for (int tid = 0; tid < h->n_targets; tid++) {
+    sorted_tids.push_back({0, h->target_len[tid], tid});
+  }
+  for (int i = 0; i < shared->n; i++) {
+    hts_idx_t *idx = hts_idx_load(shared->fn[i], HTS_FMT_BAI);
+    if (idx == NULL) {
+      fprintf(stderr, "[%s] fail to load index for %s\n", __func__, shared->fn[i]);
+      exit(EXIT_FAILURE);
+    }
+
+    for (int tid = 0; tid < h->n_targets; tid++) {
+      uint64_t mapped, unmapped;
+      hts_idx_get_stat(idx, tid, &mapped, &unmapped);
+
+      sorted_tids[tid].num_reads += (mapped + unmapped);
+    }
+  }
+
+  std::sort(sorted_tids.begin(), sorted_tids.end(),
+            [](const reference_depth_t& lhs,
+               const reference_depth_t& rhs)->bool {
+            return lhs.num_reads/static_cast<double>(lhs.length) >
+              rhs.num_reads/static_cast<double>(rhs.length);
+            });
+  std::vector<int> res;
+  for (const auto& item : sorted_tids) {
+    if (item.num_reads == 0) {
+      break;
+    } else {
+      res.push_back(item.tid);
+    }
+  }
+  return res;
+};
+
 static void mem_process(ktp_aux_t* shared) {
+  std::vector<int> sorted_tids = sorted_reference_by_depth(shared);
   std::mutex mtx;
   std::vector<std::thread> threads;
   // 0.83 == CALL_DEFTHETA
   errmod_t* em = errmod_init(1.0 - 0.83);
   for (int i = 0; i < shared->conf->nthreads; i++) {
-    threads.emplace_back([&shared, &mtx, em]() {
+    threads.emplace_back([&shared, &mtx, &sorted_tids, em]() {
       ktp_worker_t* worker_data = new ktp_worker_t;
       worker_data->aux = shared;
       worker_data->record_buf_vec = new mplp_record_t*[shared->n];
@@ -948,7 +1027,7 @@ static void mem_process(ktp_aux_t* shared) {
       }
 
       while (true) {
-        if (read_records(shared, worker_data, mtx)) {
+        if (read_records(shared, worker_data, sorted_tids, mtx)) {
           int ret;
           worker(shared, worker_data, em, &ret);
         } else {
@@ -1045,6 +1124,7 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
   aux.bcf_hdr = bcf_hdr;
   aux.sm = sm;
   aux.rghash = rghash;
+  aux.tid_idx = -1;
   aux.tid = -1;
   aux.beg = 0;
   aux.end = -1;

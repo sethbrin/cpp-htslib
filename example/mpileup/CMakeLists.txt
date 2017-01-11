@@ -12,6 +12,8 @@ set(MPILEUP_FILES
         regidx.c
 )
 
+#add_compile_options(-DMPILEUP_STATS)
+
 add_executable(mpileup ${MPILEUP_FILES} mpileup.cpp)
 add_executable(mpileup2 ${MPILEUP_FILES} mpileup2.cpp)
 add_executable(mpileup_bcftools ${MPILEUP_FILES} mpileup_bcftools.cpp)

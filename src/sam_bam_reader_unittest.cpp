@@ -129,3 +129,21 @@ TEST(BAMIndexReaderTest, BamRecord) {
                  "CTTGAACTCCTGGACTCAGGTGATGCATCCGCCTCAGCCTCCCAAACTGTT");
   }
 }
+
+TEST(BAMINDEX, Index) {
+  TEST_FILE("index_test.bam", filename);
+  BAMIndex index(filename);
+  samFile* fp = sam_open(filename, "r");
+  bam_hdr_t* hdr = sam_hdr_read(fp);
+
+  hts_idx_t* idx = index.GetRawIndex();
+  uint64_t mapped, unmapped;
+  int tid = 1;
+  hts_idx_get_stat(idx, tid, &mapped, &unmapped);
+
+  printf("reference name: %s, mapped:%lld -- unmapped:%lld\n",
+         hdr->target_name[tid],
+         mapped, unmapped);
+  hts_close(fp);
+  bam_hdr_destroy(hdr);
+}

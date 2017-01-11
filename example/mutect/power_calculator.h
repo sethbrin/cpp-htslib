@@ -60,7 +60,8 @@ class AbstractPowerCalculator {
     : constant_eps_(constant_eps),
     constant_lod_threshold_(constant_lod_threshold) {}
 
-  static double CalculateLogLikelihood(int depth, int alts, double eps, double f) {
+  static double CalculateLogLikelihood(int depth, int alts,
+                                       double eps, double f) {
     double a = (depth - alts) * std::log10(f * eps + (1 - f) * (1 - eps));
     double b = (alts) * std::log10(f * (1 - eps) + (1 - f) * eps);
 
@@ -79,7 +80,8 @@ class NormalPowerCalculator : public AbstractPowerCalculator {
   NormalPowerCalculator(double constant_eps, double constant_lod_threshold)
     : NormalPowerCalculator(constant_eps, constant_lod_threshold, true) {}
 
-  NormalPowerCalculator(double constant_eps, double constant_lod_threshold, bool enable_smoothing)
+  NormalPowerCalculator(double constant_eps, double constant_lod_threshold,
+                        bool enable_smoothing)
     : AbstractPowerCalculator(constant_eps, constant_lod_threshold),
     constant_enable_smoothing_(enable_smoothing) {}
 
@@ -87,7 +89,8 @@ class NormalPowerCalculator : public AbstractPowerCalculator {
     PowerCacheKey key(n, 0.5);
     if (cache_.find(key) == cache_.end()) {
       double power = CalculatePower(n, constant_eps_,
-                                    constant_lod_threshold_, constant_enable_smoothing_);
+                                    constant_lod_threshold_,
+                                    constant_enable_smoothing_);
       cache_[key] = power;
       return power;
     }
@@ -99,7 +102,8 @@ class NormalPowerCalculator : public AbstractPowerCalculator {
             CalculateLogLikelihood(depth, alts, eps, 0.5));
   }
 
-  static double CalculatePower(int depth, double eps, double lod_threshold, bool enable_smoothing) {
+  static double CalculatePower(int depth, double eps, double lod_threshold,
+                               bool enable_smoothing) {
     if (depth == 0) return 0;
 
     // Calculate the probalility of each configuration
@@ -121,10 +125,12 @@ class NormalPowerCalculator : public AbstractPowerCalculator {
     if (k == -1) return 0;
 
     double power = 0;
-    // here we correct for the fact that the exact lod threshold is likely somewhere between
+    // here we correct for the fact that the exact lod threshold is likely
+    // somewhere between
     // the k and k-1 bin, so we prorate the power from that bin
     // the k and k-1 bin, so we prorate the power from that bin
-    // if k==0, it must be that lodThreshold == lod[k] so we don't have to make this correction
+    // if k==0, it must be that lodThreshold == lod[k] so we don't have
+    // to make this correction
     if (enable_smoothing && k > 0) {
       double x = 1 - (lod_threshold - lod[k-1]) / (lod[k] - lod[k-1]);
       power = x * p[k-1];
@@ -168,14 +174,16 @@ class TumorPowerCalculator : public AbstractPowerCalculator {
     return cache_[key];
   }
 
-  static double CalculateNormalLod(int depth, int alts, double eps, double contam) {
+  static double CalculateNormalLod(int depth, int alts,
+                                   double eps, double contam) {
     double f = static_cast<double>(alts) / static_cast<double>(depth);
     return (CalculateLogLikelihood(depth, alts, eps, f) -
             CalculateLogLikelihood(depth, alts, eps, std::min(f, contam)));
   }
 
   static double CalculatePower(int depth, double eps, double lod_threshold,
-                               double delta, double contam, bool enable_smoothing) {
+                               double delta, double contam,
+                               bool enable_smoothing) {
     if (depth == 0) return 0;
 
     // Calculate the probalility of each configuration
@@ -198,10 +206,12 @@ class TumorPowerCalculator : public AbstractPowerCalculator {
     if (k == -1) return 0;
 
     double power = 0;
-    // here we correct for the fact that the exact lod threshold is likely somewhere between
+    // here we correct for the fact that the exact lod threshold is
+    // likely somewhere between
     // the k and k-1 bin, so we prorate the power from that bin
     // the k and k-1 bin, so we prorate the power from that bin
-    // if k==0, it must be that lodThreshold == lod[k] so we don't have to make this correction
+    // if k==0, it must be that lodThreshold == lod[k]
+    // so we don't have to make this correction
     if (enable_smoothing && k > 0) {
       double x = 1 - (lod_threshold - lod[k-1]) / (lod[k] - lod[k-1]);
       power = x * p[k-1];
