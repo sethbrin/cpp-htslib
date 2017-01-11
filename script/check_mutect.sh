@@ -5,7 +5,7 @@
 #
 
 # XXX the dir of the current script
-SCRIPT_DIR=$(cd $(dirname $0}); pwd )
+SCRIPT_DIR=$(cd $(dirname $(readlink -f $0)); pwd )
 
 # Set the following path
 REFERENCE=/home/zp/work/rnaseq/cpp-htslib/test/localtestdata/references/references/human_g1k_v37.fasta
@@ -42,10 +42,10 @@ do
     diff ${DATA_DIR}/out-sorted.vcf ${DATA_DIR}/result.vcf
 
   if [ $? -eq 0 ]; then
-    echo "===============================mutect correst on thread:$thread============="
+    echo "=================mutect correst on thread:$thread============="
     rm ${DATA_DIR}/out-*.txt ${DATA_DIR}/out-*.vcf
   else
-    echo "===============================mutect not correst on thread:$thread============="
+    echo "=================mutect not correst on thread:$thread============="
     exit
   fi
 done
