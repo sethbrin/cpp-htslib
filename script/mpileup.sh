@@ -14,16 +14,6 @@ else
   BAMFILES="${DATA_DIR}/mpileup.1.bam ${DATA_DIR}/mpileup.2.bam ${DATA_DIR}/mpileup.3.bam"
 fi
 
-#chunk_sizes=(10000 25000 50000 100000 200000 400000 800000)
-chunk_sizes=(400000 500000)
-for chunk_size in ${chunk_sizes[@]}
-do
-  echo "==========chunk_size: $chunk_size start============"
-  date +'%Y-%m-%d %H:%M:%S'
-  ./bin/mpileup_bcftools_region -uvf $FASTA $BAMFILES -@ 24 --chunk_size $chunk_size -o ${DATA_DIR}/mpileup_bcftools_region-${chunk_size}.vcf
-  date +'%Y-%m-%d %H:%M:%S'
-  echo "==========chunk_size: $chunk_size end============"
-done
 exit
 #${DATA_DIR}/samtools mpileup -ugf $FASTA $BAMFILES \
 #  | ${DATA_DIR}/bcftools call -O v -o ${DATA_DIR}/mpileup.vcf -vm
