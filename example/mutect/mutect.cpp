@@ -219,14 +219,16 @@ void Worker::PrepareCondidate(
     .GetBaseFilteredPileupCount(20);
 
   // calculate power
-  double tumor_power = tumor_power_calculator_
-    .CachingPowerCalculation(
+  double tumor_power = mutect_.tumor_power_calculator_
+    ->CachingPowerCalculation(
         tumor_base_count,
         mutect_args_.power_contant_af.getValue());
-  double normal_power_no_snp_prior = normal_novel_site_power_calculator_
-    .CachingPowerCalculation(normal_base_count);
-  double normal_power_with_snp_prior = normal_db_snp_site_power_calculator_
-    .CachingPowerCalculation(normal_base_count);
+  double normal_power_no_snp_prior =
+    mutect_.normal_novel_site_power_calculator_
+    ->CachingPowerCalculation(normal_base_count);
+  double normal_power_with_snp_prior =
+    mutect_.normal_db_snp_site_power_calculator_
+    ->CachingPowerCalculation(normal_base_count);
 
   double normal_power = germline_at_risk ?
     normal_power_with_snp_prior : normal_power_no_snp_prior;
@@ -318,7 +320,7 @@ void Worker::PrepareCondidate(
     }
 
     // calculate lod of contaminant
-    double contaminant_F = std::min(contaminat_alternate_fraction_,
+    double contaminant_F = std::min(mutect_.contaminat_alternate_fraction_,
                                     candidate.tumor_F);
     VariableAllelicRatioGenotypeLikelihoods contaminant_likelihoods(
         up_ref, contaminant_F);
@@ -344,8 +346,9 @@ void Worker::PrepareCondidate(
     std::sort(pe_list.begin(), pe_list.end(),
               pileup_comparator_by_alt_ref);
 
-    int reads_to_keep = static_cast<int>(pe_list.size() *
-                                         contaminat_alternate_fraction_);
+    int reads_to_keep = static_cast<int>(
+        pe_list.size() *
+        mutect_.contaminat_alternate_fraction_);
     for (const auto& pe : pe_list) {
       char base = pe->GetBase();
       if (base == alt_allele) {
@@ -469,10 +472,10 @@ void Worker::PrepareCondidate(
 
 
     candidate.power_to_detect_positive_strand_artifact =
-      strand_artifact_power_calculator_.CachingPowerCalculation(
+      mutect_.strand_artifact_power_calculator_->CachingPowerCalculation(
           reverse_pileup.Size(), candidate.tumor_F);
     candidate.power_to_detect_negative_strand_artifact =
-      strand_artifact_power_calculator_.CachingPowerCalculation(
+      mutect_.strand_artifact_power_calculator_->CachingPowerCalculation(
           forward_pileup.Size(), candidate.tumor_F);
 
     candidate.strand_contingency_table =
@@ -724,7 +727,7 @@ void Mutect::Run() {
   workers.reserve(thread_cnt);
   for (int i = 0; i < thread_cnt; i++) {
     workers.emplace_back([this, &intervals, &interval_index]() {
-      Worker worker(this->mutect_args_, this->reference_,
+      Worker worker(this->mutect_args_, *this, this->reference_,
                     this->call_stats_generator_,
                     this->vcf_generator_);
       while (interval_index < intervals.size()) {

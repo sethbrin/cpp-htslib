@@ -12,6 +12,7 @@
 #include <functional>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 
 namespace ncic {
 namespace mutect {
@@ -72,6 +73,7 @@ class AbstractPowerCalculator {
   std::unordered_map<PowerCacheKey, double> cache_;
   double constant_eps_;
   double constant_lod_threshold_;
+  std::mutex mtx_;
 };
 
 class NormalPowerCalculator : public AbstractPowerCalculator {
@@ -91,7 +93,12 @@ class NormalPowerCalculator : public AbstractPowerCalculator {
       double power = CalculatePower(n, constant_eps_,
                                     constant_lod_threshold_,
                                     constant_enable_smoothing_);
-      cache_[key] = power;
+      {
+        std::lock_guard<std::mutex> lock(mtx_);
+        if (cache_.find(key) == cache_.end()) {
+          cache_[key] = power;
+        }
+      }
       return power;
     }
     return cache_[key];
@@ -168,7 +175,12 @@ class TumorPowerCalculator : public AbstractPowerCalculator {
                                     constant_lod_threshold_, delta,
                                     constant_contamination_,
                                     constant_enable_smoothing_);
-      cache_[key] = power;
+      {
+        std::lock_guard<std::mutex> lock(mtx_);
+        if (cache_.find(key) == cache_.end()) {
+          cache_[key] = power;
+        }
+      }
       return power;
     }
     return cache_[key];

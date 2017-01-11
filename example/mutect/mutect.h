@@ -32,13 +32,16 @@
 namespace ncic {
 namespace mutect {
 
+class Mutect;
 class Worker : public easehts::NonCopyable {
  public:
   Worker(MutectArgs& mutect_args,
+         Mutect& mutect,
          easehts::IndexedFastaSequenceFile& reference,
          CallStatsGenerator& call_stats_generator,
          VCFGenerator& vcf_generator)
     : mutect_args_(mutect_args),
+    mutect_(mutect),
     reference_(mutect_args_.reference.getValue()),
     call_stats_generator_(call_stats_generator),
     vcf_generator_(vcf_generator) {
@@ -84,28 +87,6 @@ class Worker : public easehts::NonCopyable {
       mutect_args_.normal_dbsnp_lod_threshold.setValue(-1 * FLT_MAX);
       mutect_args_.normal_artifact_lod_threshold.setValue(FLT_MAX);
     }
-
-    contaminat_alternate_fraction_ = std::max(
-        mutect_args_.minimum_mutation_cell_fraction.getValue(),
-        mutect_args_.fraction_contamination.getValue());
-
-    // coverage related initialization
-    double power_constant_eps = std::pow(10,
-        -1 * (mutect_args_.power_constant_qscore.getValue()/10));
-
-    tumor_power_calculator_ = TumorPowerCalculator(
-        power_constant_eps,
-        mutect_args_.tumor_lod_threshold.getValue(),
-        contaminat_alternate_fraction_);
-    normal_novel_site_power_calculator_ = NormalPowerCalculator(
-        power_constant_eps,
-        mutect_args_.normal_lod_threshold.getValue());
-    normal_db_snp_site_power_calculator_ = NormalPowerCalculator(
-        power_constant_eps,
-        mutect_args_.normal_dbsnp_lod_threshold.getValue());
-    strand_artifact_power_calculator_ = TumorPowerCalculator(
-        power_constant_eps,
-        mutect_args_.strand_artifact_lod_threshold.getValue(), 0.0f);
 
     // to force output, all we have to do is lower the initial tumor lod threshold
     if (mutect_args_.force_output.getValue()) {
@@ -167,6 +148,7 @@ class Worker : public easehts::NonCopyable {
   const static int kMaxReadMismatchQualityScoreSum;
   const static char kMappedByMate;
 
+  Mutect& mutect_;
   MutectArgs& mutect_args_;
   easehts::IndexedFastaSequenceFile reference_;
   CallStatsGenerator& call_stats_generator_;
@@ -175,7 +157,6 @@ class Worker : public easehts::NonCopyable {
   std::vector<easehts::BAMIndexReader> tumor_readers_;
   std::vector<easehts::BAMIndexReader> normal_readers_;
   bool has_normal_bam_;
-  double contaminat_alternate_fraction_;
 
   std::vector<std::unique_ptr<easehts::VCFTraverse>> cosmic_traverses_;
   std::vector<std::unique_ptr<easehts::VCFTraverse>> dbsnp_traverses_;
@@ -183,10 +164,6 @@ class Worker : public easehts::NonCopyable {
   easehts::VariantContext* cosmic_variant_context_;
   easehts::VariantContext* dbsnp_variant_context_;
 
-  TumorPowerCalculator tumor_power_calculator_;
-  NormalPowerCalculator normal_novel_site_power_calculator_;
-  NormalPowerCalculator normal_db_snp_site_power_calculator_;
-  TumorPowerCalculator strand_artifact_power_calculator_;
 };
 
 class Mutect : public easehts::NonCopyable {
@@ -197,10 +174,39 @@ class Mutect : public easehts::NonCopyable {
     call_stats_generator_(mutect_args_.enable_qscore_output.getValue(),
                           mutect_args_.output_file.getValue()),
     vcf_generator_(mutect_args_.vcf_file.getValue()) {
+
+    contaminat_alternate_fraction_ = std::max(
+        mutect_args_.minimum_mutation_cell_fraction.getValue(),
+        mutect_args_.fraction_contamination.getValue());
+
+    // coverage related initialization
+    double power_constant_eps = std::pow(10,
+        -1 * (mutect_args_.power_constant_qscore.getValue()/10));
+
+    tumor_power_calculator_.reset(new TumorPowerCalculator(
+        power_constant_eps,
+        mutect_args_.tumor_lod_threshold.getValue(),
+        contaminat_alternate_fraction_));
+    normal_novel_site_power_calculator_.reset(new NormalPowerCalculator(
+        power_constant_eps,
+        mutect_args_.normal_lod_threshold.getValue()));
+    normal_db_snp_site_power_calculator_.reset(new NormalPowerCalculator(
+        power_constant_eps,
+        mutect_args_.normal_dbsnp_lod_threshold.getValue()));
+    strand_artifact_power_calculator_.reset(new TumorPowerCalculator(
+        power_constant_eps,
+        mutect_args_.strand_artifact_lod_threshold.getValue(), 0.0f));
+
   }
 
   void Run();
 
+ public:
+  double contaminat_alternate_fraction_;
+  std::unique_ptr<TumorPowerCalculator> tumor_power_calculator_;
+  std::unique_ptr<NormalPowerCalculator> normal_novel_site_power_calculator_;
+  std::unique_ptr<NormalPowerCalculator> normal_db_snp_site_power_calculator_;
+  std::unique_ptr<TumorPowerCalculator> strand_artifact_power_calculator_;
 
  private:
   // XXX the order is very important!!!! you should not change it!!!
