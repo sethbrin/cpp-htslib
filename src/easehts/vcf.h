@@ -94,7 +94,7 @@ class VCFHeader : public NonCopyable {
       line += "ID=" + std::string(hdr->target_name[idx]) + ",";
       line += "length=" + std::to_string(hdr->target_len[idx]) + ",";
       // TODO assemby may change, current just set it to b37
-      line += "assemby=" + assemby + ">";
+      line += "assembly=" + assemby + ">";
       bcf_hdr_append(header_, line.c_str());
     }
   }
