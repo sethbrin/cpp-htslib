@@ -16,7 +16,6 @@ set(CXX_FLAGS
         -Woverloaded-virtual
         -Wpointer-arith
         -Wwrite-strings
-        -fno-elide-constructors
         -std=c++11
         -rdynamic
         )

@@ -40,7 +40,7 @@ class CGAAlignmentUtils : public easehts::NonCopyable {
     int window_stop = window.GetStop();
     easehts::SAMBAMRecord* read = p->GetRead();
     std::string read_bases = read->GetSequence();
-    std::string read_qualities = read->GetQuality();
+    uint8_t* read_qualities = read->GetRawQuality();
     const std::vector<easehts::CigarElement>& cigars =
       read->GetCigar();
 

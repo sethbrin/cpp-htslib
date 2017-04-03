@@ -949,9 +949,13 @@ typedef struct {
 static std::vector<int> sorted_reference_by_depth(const ktp_aux_t* shared) {
   std::vector<reference_depth_t> sorted_tids;
   bam_hdr_t* h = shared->h;
+
   for (int tid = 0; tid < h->n_targets; tid++) {
     sorted_tids.push_back({0, h->target_len[tid], tid});
+
   }
+
+
   for (int i = 0; i < shared->n; i++) {
     hts_idx_t *idx = hts_idx_load(shared->fn[i], HTS_FMT_BAI);
     if (idx == NULL) {
@@ -1069,8 +1073,8 @@ static void init_aux_call(ktp_aux_t* aux) {
 
   mcall_init(&aux->call);
 
-  bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "QS");
-  bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "I16");
+  //bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "QS");
+  //bcf_hdr_remove(aux->call.hdr, BCF_HL_INFO, "I16");
 }
 
 /*

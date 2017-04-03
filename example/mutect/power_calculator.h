@@ -171,6 +171,9 @@ class TumorPowerCalculator : public AbstractPowerCalculator {
   double CachingPowerCalculation(int n, double delta) {
     PowerCacheKey key(n, delta);
     if (cache_.find(key) == cache_.end()) {
+      // Here the total core time will increase, but the total time
+      // will not increase, CalculatePower will invoke more time
+      // in more threads
       double power = CalculatePower(n, constant_eps_,
                                     constant_lod_threshold_, delta,
                                     constant_contamination_,

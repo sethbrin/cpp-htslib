@@ -74,6 +74,11 @@ class SAMSequenceDictionary : public NonCopyable {
     return ::bam_name2id(header_, ref.c_str());
   }
 
+  std::string GetSequenceName(int tid) const {
+    assert(tid < header_->n_targets && tid >= 0);
+    return header_->target_name[tid];
+  }
+
   bool HasSequence(const char* ref) const {
     CHECK_NOTNULL(header_);
     return ::bam_name2id(header_, ref) != -1;

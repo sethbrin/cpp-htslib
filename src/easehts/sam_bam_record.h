@@ -101,6 +101,7 @@ class SAMBAMRecord : public NonCopyable {
     }
     alignment_end_ = kUninitializedCachedIntValue;
     read_name_hashcode_ = 0;
+    cached_qual_ = NULL;
   }
 
   SAMBAMRecord(SAMBAMRecord&& rhs)
@@ -108,6 +109,7 @@ class SAMBAMRecord : public NonCopyable {
     rhs.raw_record_ = nullptr;
     alignment_end_ = kUninitializedCachedIntValue;
     read_name_hashcode_ = 0;
+    cached_qual_ = NULL;
   }
 
   SAMBAMRecord& operator=(SAMBAMRecord&& rhs) {
@@ -116,6 +118,7 @@ class SAMBAMRecord : public NonCopyable {
     rhs.raw_record_ = nullptr;
     alignment_end_ = kUninitializedCachedIntValue;
     read_name_hashcode_ = 0;
+    cached_qual_ = NULL;
     return *this;
   }
 
@@ -256,25 +259,14 @@ class SAMBAMRecord : public NonCopyable {
    @return    pointer to quality string
    */
   uint8_t* GetRawQuality() {
-    return bam_get_qual(raw_record_);
-  }
-
-  std::string GetQuality() {
-    return SAMBAMRecord::GetQuality(raw_record_);
+    if (cached_qual_ == NULL) {
+      cached_qual_ = bam_get_qual(raw_record_);
+    }
+    return cached_qual_;
   }
 
   static uint8_t* GetRawQuality(bam1_t* b) {
     return bam_get_qual(b);
-  }
-
-  static std::string GetQuality(bam1_t* b) {
-    std::string res;
-    uint8_t* qual = GetRawQuality(b);
-    for (int i = 0; i < b->core.l_qseq; i++) {
-      res.push_back(qual[i]);
-    }
-
-    return res;
   }
 
   /*! @function
@@ -435,6 +427,13 @@ class SAMBAMRecord : public NonCopyable {
     return len;
   }
 
+  int GetPos() const {
+    return raw_record_->core.pos;
+  }
+
+  int GetReferenceId() const {
+    return raw_record_->core.tid;
+  }
 
   int GetMapQuality() const {
     return raw_record_->core.qual;
@@ -636,6 +635,7 @@ class SAMBAMRecord : public NonCopyable {
   mutable int alignment_end_;
   mutable std::string read_name_;
   mutable size_t read_name_hashcode_;
+  mutable uint8_t* cached_qual_;
 };
 
 } // easehts
