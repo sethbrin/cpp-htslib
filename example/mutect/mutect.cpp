@@ -749,6 +749,9 @@ void Mutect::Run() {
   for (int i = 0; i < thread_cnt; i++) {
     workers[i].join();
   }
+
+  vcf_generator_.Close();
+  call_stats_generator_.Close();
 }
 
 

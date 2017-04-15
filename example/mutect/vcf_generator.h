@@ -30,6 +30,10 @@ class VCFGenerator : public easehts::NonCopyable {
   static const std::string kTumorName;
   static const std::string kNormalName;
 
+  void Close() {
+    writer_.Close();
+  }
+
  private:
   easehts::VCFWriter writer_;
 };

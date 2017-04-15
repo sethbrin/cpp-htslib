@@ -34,6 +34,10 @@ class CallStatsGenerator : public easehts::NonCopyable {
     fclose(fp_);
   }
 
+  void Close() {
+    fclose(fp_);
+  }
+
   void WriteHeader() {
     fprintf(fp_, "%s\n", GenerateHeader().c_str());
   }
