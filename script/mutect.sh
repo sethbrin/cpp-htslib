@@ -15,18 +15,18 @@ fi
 echo "==================mutect origin start====="
 date +'%Y-%m-%d %H:%M:%S'
 
-java -Xmx2g -jar ${DATA_DIR}/mutect-1.1.7.jar \
-  --analysis_type MuTect \
-  --downsampling_type NONE \
-  --intervals ${DATA_DIR}/mutect_panle_372.interval_list \
-  --reference_sequence /home/zp/work/rnaseq/cpp-htslib/test/localtestdata/references/references/human_g1k_v37.fasta \
-  --fraction_contamination 0.00 \
-  --dbsnp ${BASE_DIR}/references/vcf/dbsnp_138.b37.vcf \
-  --cosmic ${BASE_DIR}/references/vcf/b37_cosmic_v54_120711.vcf \
-  --input_file:normal ${DATA_DIR}/${normal} \
-  --input_file:tumor ${DATA_DIR}/${tumor} \
-  --out ${DATA_DIR}/out-java.txt \
-  --vcf ${DATA_DIR}/out-java.vcf
+#java -Xmx2g -jar ${DATA_DIR}/mutect-1.1.7.jar \
+#  --analysis_type MuTect \
+#  --downsampling_type NONE \
+#  --intervals ${DATA_DIR}/mutect_panle_372.interval_list \
+#  --reference_sequence /home/zp/work/rnaseq/cpp-htslib/test/localtestdata/references/references/human_g1k_v37.fasta \
+#  --fraction_contamination 0.00 \
+#  --dbsnp ${BASE_DIR}/references/vcf/dbsnp_138.b37.vcf \
+#  --cosmic ${BASE_DIR}/references/vcf/b37_cosmic_v54_120711.vcf \
+#  --input_file:normal ${DATA_DIR}/${normal} \
+#  --input_file:tumor ${DATA_DIR}/${tumor} \
+#  --out ${DATA_DIR}/out-java.txt \
+#  --vcf ${DATA_DIR}/out-java.vcf
 
 echo "==================mutect origin end====="
 date +'%Y-%m-%d %H:%M:%S'

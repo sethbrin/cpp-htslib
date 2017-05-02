@@ -8,3 +8,6 @@ test/localtestdata/
 cmake-build-debug/
 
 test/vcf/sorting-example.vcf
+
+script/log*
+script/*.data
